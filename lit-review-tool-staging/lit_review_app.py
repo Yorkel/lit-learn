@@ -63,6 +63,22 @@ def _load_dotenv():
 
 
 _load_dotenv()
+
+
+def _hydrate_secrets_into_env():
+    """On Streamlit Cloud, secrets live in st.secrets, not env vars. The
+    anthropic SDK reads from env, so push secrets across at startup."""
+    try:
+        for k in ("ANTHROPIC_API_KEY", "NEON_DATABASE_URL", "LIT_REVIEW_PASSWORD"):
+            if k not in os.environ:
+                v = st.secrets.get(k, "") if hasattr(st, "secrets") else ""
+                if v:
+                    os.environ[k] = v
+    except Exception:
+        pass
+
+
+_hydrate_secrets_into_env()
 HAS_API_KEY = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 SOURCE_TYPES = [
