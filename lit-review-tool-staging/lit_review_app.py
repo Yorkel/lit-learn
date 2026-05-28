@@ -1520,7 +1520,7 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
             st.caption("(Nothing saved yet for this paper.)")
 
     # ── 4. AI summary (LLM-generated, editable) ──
-    st.markdown("#### 4. ✨ AI summary")
+    st.markdown("#### ✨ AI summary")
     st.caption("Two paragraphs: what the paper says + how it relates to your paper. Editable; autosaves.")
     summary_key = f"summary_{pid}_{key}"
     summary_pending_key = f"_pending_sum_{summary_key}"
