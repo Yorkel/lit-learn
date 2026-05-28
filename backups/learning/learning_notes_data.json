@@ -1,5 +1,148 @@
 {
   "course_title": "L6 AI Engineer",
   "course_sub": "Cambridge Spark \u00b7 March 2025",
-  "modules": []
+  "modules": [
+    {
+      "id": "9yc2crji",
+      "title": "AI Ethics, Safety and Governance",
+      "sections": [
+        {
+          "id": "zdfffn68",
+          "title": "Data Collection & Sampling",
+          "topics": [
+            {
+              "id": "vdxxdzku",
+              "name": "Sampling Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "osm1eo2f",
+              "name": "Selection Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "vgrlesi7",
+              "name": "Coverage Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "y8bxpiuf",
+              "name": "Non-Response Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "lmrcdwbn",
+              "name": "Reporting Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "2jhlqfpd",
+              "name": "Historical Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            }
+          ]
+        },
+        {
+          "id": "7jdnbhyt",
+          "title": "Data Labelling & Pre-Processing",
+          "topics": [
+            {
+              "id": "sv6ei1uo",
+              "name": "Measurement Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "3wkgsgd8",
+              "name": "Label (Recall) Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "mc8a1n6p",
+              "name": "Exclusion Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            }
+          ]
+        },
+        {
+          "id": "o2ag019z",
+          "title": "Human & Cognitive Influence",
+          "topics": [
+            {
+              "id": "b70t4fol",
+              "name": "Implicit Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "iltg9kb4",
+              "name": "Prejudice Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "no9th170",
+              "name": "Group Attribution Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "0zzfigma",
+              "name": "Confirmation Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "99x6ook8",
+              "name": "Experimenter's Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            }
+          ]
+        },
+        {
+          "id": "j95tkw2t",
+          "title": "Algorithm Design & System Use",
+          "topics": [
+            {
+              "id": "s7jp3uec",
+              "name": "Algorithmic Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            },
+            {
+              "id": "r4k7h08k",
+              "name": "Automation Bias",
+              "done": true,
+              "notes_html": "",
+              "resources": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
