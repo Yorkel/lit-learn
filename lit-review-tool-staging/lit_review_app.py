@@ -925,11 +925,6 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     # SECTION 2 — Outline (simple markdown-checklist editor)
     # ─────────────────────────────────────────────────────────────────────
     st.subheader("2. Outline")
-    st.caption(
-        "One section per line. Indent 2 spaces for subsections. "
-        "`[x]` = written, `[ ]` = not yet. The `- [ ]` prefix is optional — "
-        "you can also just type plain text and it'll be treated as not-yet-written."
-    )
     current_outline = setup.get("outline", []) or []
     outline_text_default = outline_to_text(current_outline) or (
         "- [ ] Introduction\n"
