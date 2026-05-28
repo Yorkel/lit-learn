@@ -1824,6 +1824,76 @@ def render_draft(project: dict, df: pd.DataFrame, setup: dict):
 # ── NOTES TAB ────────────────────────────────────────────────────────────────
 
 
+@st.fragment
+def _notes_paper_card(project: dict, key: str):
+    """One paper's editable note card. Wrapped in @st.fragment so editing
+    this card doesn't re-render the other ~36 cards on the page."""
+    df_now = load_sources(project)
+    rows = df_now[df_now["key"] == key]
+    if rows.empty:
+        st.warning(f"Paper {key} no longer exists.")
+        return
+    row = rows.iloc[0]
+    pid = project["id"]
+
+    new_summary = st.text_area(
+        "📝 Summary", value=row.get("summary", "") or "",
+        key=f"notes_summary_{pid}_{key}", height=100,
+    )
+    new_quotes = st.text_area(
+        "🗨 Quotes", value=row.get("quotes", "") or "",
+        key=f"notes_quotes_{pid}_{key}", height=130,
+    )
+    new_notes = st.text_area(
+        "📒 Notes", value=row.get("notes", "") or "",
+        key=f"notes_notes_{pid}_{key}", height=130,
+    )
+    new_thoughts = st.text_area(
+        "💭 Thoughts", value=row.get("thoughts", "") or "",
+        key=f"notes_thoughts_{pid}_{key}", height=100,
+    )
+    new_tags = st.text_input(
+        "Tags", value=row.get("tags", "") or "",
+        key=f"notes_tags_{pid}_{key}",
+    )
+
+    changed = (
+        new_summary != (row.get("summary") or "")
+        or new_quotes != (row.get("quotes") or "")
+        or new_notes != (row.get("notes") or "")
+        or new_thoughts != (row.get("thoughts") or "")
+        or new_tags != (row.get("tags") or "")
+    )
+
+    cols = st.columns([1, 1, 4])
+    with cols[0]:
+        if st.button("💾 Save", key=f"notes_save_{pid}_{key}",
+                     disabled=not changed, width="stretch"):
+            df_now = update_row(df_now, key, {
+                "summary": new_summary, "quotes": new_quotes,
+                "notes": new_notes, "thoughts": new_thoughts,
+                "tags": new_tags,
+            })
+            save_sources(project, df_now)
+            st.success("Saved.")
+            st.rerun(scope="fragment")
+    with cols[1]:
+        confirm_key = f"notes_del_confirm_{pid}_{key}"
+        if st.session_state.get(confirm_key):
+            if st.button("⚠ Confirm delete", key=f"notes_del_yes_{pid}_{key}",
+                         width="stretch"):
+                df_after = df_now[df_now["key"] != key].reset_index(drop=True)
+                save_sources(project, df_after)
+                st.session_state.pop(confirm_key, None)
+                st.success(f"Deleted {key}.")
+                st.rerun()  # full rerun — list of papers changed
+        else:
+            if st.button("🗑 Delete paper", key=f"notes_del_{pid}_{key}",
+                         width="stretch"):
+                st.session_state[confirm_key] = True
+                st.rerun(scope="fragment")
+
+
 def render_notes(project: dict, df: pd.DataFrame):
     """Per-paper editable view of compiled review notes (quotes / notes /
     thoughts / summary). One expander per paper. Auto-saves on edit.
@@ -1893,73 +1963,7 @@ def render_notes(project: dict, df: pd.DataFrame):
         marker = "" if has_any else "  *(empty)*"
         header = f"{badge}  **{title}** — {authors} {year}{marker}"
         with st.expander(header, expanded=False):
-            df_now = load_sources(project)
-
-            new_summary = st.text_area(
-                "📝 Summary",
-                value=row.get("summary", "") or "",
-                key=f"notes_summary_{pid}_{key}",
-                height=100,
-            )
-            new_quotes = st.text_area(
-                "🗨 Quotes",
-                value=row.get("quotes", "") or "",
-                key=f"notes_quotes_{pid}_{key}",
-                height=130,
-            )
-            new_notes = st.text_area(
-                "📒 Notes",
-                value=row.get("notes", "") or "",
-                key=f"notes_notes_{pid}_{key}",
-                height=130,
-            )
-            new_thoughts = st.text_area(
-                "💭 Thoughts",
-                value=row.get("thoughts", "") or "",
-                key=f"notes_thoughts_{pid}_{key}",
-                height=100,
-            )
-            new_tags = st.text_input(
-                "Tags",
-                value=row.get("tags", "") or "",
-                key=f"notes_tags_{pid}_{key}",
-            )
-
-            changed = (
-                new_summary != (row.get("summary") or "")
-                or new_quotes != (row.get("quotes") or "")
-                or new_notes != (row.get("notes") or "")
-                or new_thoughts != (row.get("thoughts") or "")
-                or new_tags != (row.get("tags") or "")
-            )
-
-            cols = st.columns([1, 1, 4])
-            with cols[0]:
-                if st.button("💾 Save", key=f"notes_save_{pid}_{key}", disabled=not changed,
-                             width="stretch"):
-                    df_now = update_row(df_now, key, {
-                        "summary": new_summary, "quotes": new_quotes,
-                        "notes": new_notes, "thoughts": new_thoughts,
-                        "tags": new_tags,
-                    })
-                    save_sources(project, df_now)
-                    st.success("Saved.")
-                    st.rerun()
-            with cols[1]:
-                confirm_key = f"notes_del_confirm_{pid}_{key}"
-                if st.session_state.get(confirm_key):
-                    if st.button("⚠ Confirm delete", key=f"notes_del_yes_{pid}_{key}",
-                                 width="stretch"):
-                        df_after = df_now[df_now["key"] != key].reset_index(drop=True)
-                        save_sources(project, df_after)
-                        st.session_state.pop(confirm_key, None)
-                        st.success(f"Deleted {key}.")
-                        st.rerun()
-                else:
-                    if st.button("🗑 Delete paper", key=f"notes_del_{pid}_{key}",
-                                 width="stretch"):
-                        st.session_state[confirm_key] = True
-                        st.rerun()
+            _notes_paper_card(project, key)
 
 
 # ── LIBRARY TAB ──────────────────────────────────────────────────────────────

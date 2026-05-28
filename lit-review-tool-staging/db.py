@@ -165,20 +165,21 @@ def _migrate_outline(out) -> list:
     return new_out
 
 
-def load_setup(project: dict) -> dict:
+@st.cache_data(show_spinner=False)
+def _cached_load_setup(project_id: str, project_name: str) -> dict:
     with _conn() as c, c.cursor() as cur:
         cur.execute(
             "select title, thesis, outline, deadlines, plans, default_tags, "
             "       target_word_count, formatting_guidelines "
             "from lr_setup where project_id = %s",
-            (project["id"],),
+            (project_id,),
         )
         row = cur.fetchone()
     if not row:
-        return default_setup(project.get("name", ""))
+        return default_setup(project_name or "")
     title, thesis, outline, deadlines, plans, default_tags, target_wc, fmt = row
     return {
-        "title": title or project.get("name", ""),
+        "title": title or project_name or "",
         "thesis": thesis or "",
         "outline": _migrate_outline(outline),
         "deadlines": deadlines or [],
@@ -187,6 +188,11 @@ def load_setup(project: dict) -> dict:
         "target_word_count": int(target_wc or 0),
         "formatting_guidelines": fmt or "",
     }
+
+
+def load_setup(project: dict) -> dict:
+    """Cached read of the project's setup. Cache is invalidated on save_setup."""
+    return _cached_load_setup(project["id"], project.get("name", ""))
 
 
 def save_setup(project: dict, setup: dict) -> None:
@@ -213,6 +219,7 @@ def save_setup(project: dict, setup: dict) -> None:
                 setup.get("formatting_guidelines", ""),
             ),
         )
+    _cached_load_setup.clear()
 
 
 # ── Project lifecycle ─────────────────────────────────────────────────────────
@@ -250,55 +257,123 @@ def delete_project(reg: dict, pid: str) -> None:
     if reg.get("active_project") == pid:
         reg["active_project"] = reg["projects"][0]["id"] if reg["projects"] else None
         save_registry(reg)
+    # Wipe caches that referenced this project
+    _cached_load_sources.clear()
+    _cached_load_setup.clear()
+    _cached_load_draft.clear()
+    _cached_load_scratchpad.clear()
 
 
 # ── Sources (was sources.xlsx) ────────────────────────────────────────────────
 
 
-def load_sources(project: dict) -> pd.DataFrame:
+@st.cache_data(show_spinner=False)
+def _cached_load_sources(project_id: str) -> pd.DataFrame:
     with _conn() as c, c.cursor() as cur:
         cur.execute(
             "select " + ", ".join(SOURCE_COLS) + " from lr_sources "
             "where project_id = %s order by position, id",
-            (project["id"],),
+            (project_id,),
         )
         rows = cur.fetchall()
     if not rows:
         return pd.DataFrame(columns=SOURCE_COLS)
-    df = pd.DataFrame(rows, columns=SOURCE_COLS).astype(str).fillna("")
-    return df
+    return pd.DataFrame(rows, columns=SOURCE_COLS).astype(str).fillna("")
+
+
+def load_sources(project: dict) -> pd.DataFrame:
+    """Cached read of the project's sources. Cache is invalidated on save."""
+    # Return a copy so the caller can mutate without poisoning the cache
+    return _cached_load_sources(project["id"]).copy()
 
 
 def save_sources(project: dict, df: pd.DataFrame) -> None:
-    """Replace the project's sources table atomically."""
-    df = df.copy()
-    for c in SOURCE_COLS:
-        if c not in df.columns:
-            df[c] = ""
-    df = df[SOURCE_COLS].fillna("").astype(str)
+    """Persist the project's sources via a minimal diff against the current
+    DB state — only touches rows that were added, removed, or changed.
 
+    Previously this did DELETE-then-INSERT-all which made every per-cell
+    edit cost ~40 round-trips for a project the size of llm-judge.
+    """
+    df = df.copy()
+    for col in SOURCE_COLS:
+        if col not in df.columns:
+            df[col] = ""
+    df = df[SOURCE_COLS].fillna("").astype(str)
+    pid = project["id"]
+
+    # Pull current rows from DB into a {key: dict} index
+    current = {}
     with _conn() as c, c.cursor() as cur:
-        cur.execute("delete from lr_sources where project_id = %s", (project["id"],))
+        cur.execute(
+            f"select id, position, {', '.join(SOURCE_COLS)} "
+            f"from lr_sources where project_id = %s",
+            (pid,),
+        )
+        for row in cur.fetchall():
+            row_id, pos, *vals = row
+            current[vals[0]] = {  # vals[0] is `key` since SOURCE_COLS[0] = 'key'
+                "_id": row_id, "_pos": pos,
+                **{col: (v or "") for col, v in zip(SOURCE_COLS, vals)},
+            }
+
+        new_keys = []
         for i, row in enumerate(df.itertuples(index=False)):
-            vals = list(row) + [i]
+            row_dict = {col: getattr(row, col) for col in SOURCE_COLS}
+            key = row_dict["key"]
+            new_keys.append(key)
+
+            if key not in current:
+                # New row → INSERT
+                cur.execute(
+                    "insert into lr_sources (project_id, "
+                    + ", ".join(SOURCE_COLS) + ", position) "
+                    "values (%s, " + ", ".join(["%s"] * len(SOURCE_COLS)) + ", %s)",
+                    [pid] + [row_dict[col] for col in SOURCE_COLS] + [i],
+                )
+                continue
+
+            # Existing row → diff and UPDATE only changed columns (+ position)
+            existing = current[key]
+            changed_cols = [
+                col for col in SOURCE_COLS
+                if (row_dict[col] or "") != (existing[col] or "")
+            ]
+            if existing["_pos"] != i:
+                changed_cols.append("position")
+                row_dict["position"] = i
+            if changed_cols:
+                set_clause = ", ".join(f"{col} = %s" for col in changed_cols)
+                values = [row_dict[col] for col in changed_cols] + [existing["_id"]]
+                cur.execute(
+                    f"update lr_sources set {set_clause} where id = %s",
+                    values,
+                )
+
+        # Rows in DB but not in df → DELETE
+        removed = set(current.keys()) - set(new_keys)
+        if removed:
             cur.execute(
-                "insert into lr_sources "
-                "(project_id, " + ", ".join(SOURCE_COLS) + ", position) "
-                "values (%s, " + ", ".join(["%s"] * len(SOURCE_COLS)) + ", %s)",
-                [project["id"]] + vals,
+                "delete from lr_sources where project_id = %s and key = any(%s)",
+                (pid, list(removed)),
             )
+    _cached_load_sources.clear()
 
 
 # ── Draft (was draft.json) ────────────────────────────────────────────────────
 
 
-def load_draft(project: dict) -> dict:
+@st.cache_data(show_spinner=False)
+def _cached_load_draft(project_id: str) -> dict:
     with _conn() as c, c.cursor() as cur:
         cur.execute(
             "select section_name, draft_text from lr_draft where project_id = %s",
-            (project["id"],),
+            (project_id,),
         )
         return {name: text for name, text in cur.fetchall()}
+
+
+def load_draft(project: dict) -> dict:
+    return dict(_cached_load_draft(project["id"]))
 
 
 def save_draft(project: dict, draft: dict) -> None:
@@ -310,19 +385,25 @@ def save_draft(project: dict, draft: dict) -> None:
                 "values (%s, %s, %s)",
                 (project["id"], name, text or ""),
             )
+    _cached_load_draft.clear()
 
 
 # ── Scratchpad (was scratchpad.md) ────────────────────────────────────────────
 
 
-def load_scratchpad(project: dict) -> str:
+@st.cache_data(show_spinner=False)
+def _cached_load_scratchpad(project_id: str) -> str:
     with _conn() as c, c.cursor() as cur:
         cur.execute(
             "select content from lr_scratchpad where project_id = %s",
-            (project["id"],),
+            (project_id,),
         )
         row = cur.fetchone()
     return row[0] if row else ""
+
+
+def load_scratchpad(project: dict) -> str:
+    return _cached_load_scratchpad(project["id"])
 
 
 def save_scratchpad(project: dict, text: str) -> None:
@@ -332,6 +413,7 @@ def save_scratchpad(project: dict, text: str) -> None:
             "on conflict (project_id) do update set content = excluded.content",
             (project["id"], text or ""),
         )
+    _cached_load_scratchpad.clear()
 
 
 # ── Time log (was time_log.json) ──────────────────────────────────────────────
