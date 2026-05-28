@@ -1444,7 +1444,9 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
 
     st.divider()
 
-    # ── Staging-buffer text boxes (order: notes → quotes → thoughts) ──
+    # ── 📝 Paper review (4 boxes total: notes / quotes / thoughts / AI summary) ──
+    st.markdown("### 📝 Paper review")
+
     quotes_key = f"stage_quotes_{pid}_{key}"
     notes_key = f"stage_notes_{pid}_{key}"
     thoughts_key = f"stage_thoughts_{pid}_{key}"
@@ -1517,10 +1519,8 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
         if not (row.get("quotes") or row.get("notes") or row.get("thoughts")):
             st.caption("(Nothing saved yet for this paper.)")
 
-    st.divider()
-
-    # ── 4. 📝 Paper review (LLM-generated, editable) ──
-    st.markdown("### 4. 📝 Paper review")
+    # ── 4. AI summary (LLM-generated, editable) ──
+    st.markdown("#### 4. ✨ AI summary")
     st.caption("Two paragraphs: what the paper says + how it relates to your paper. Editable; autosaves.")
     summary_key = f"summary_{pid}_{key}"
     summary_pending_key = f"_pending_sum_{summary_key}"
