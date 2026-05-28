@@ -184,6 +184,150 @@ def pomodoro(sidebar=True):
         time.sleep(1)
         st.rerun()
 
+# ── IMPORT UI ─────────────────────────────────────────────────────────────────
+NEW_MODULE_PROMPT = """\
+I have a learning-notes app that tracks what I'm studying as a tree of:
+  modules → sections → topics
+Read THIS repo and produce ONE JSON object defining a module that covers
+everything I need to learn to reach DISTINCTION level on this assessment.
+Group concepts into sections, break each into 3-8 tickable topics.
+
+Output ONLY this JSON object, no surrounding prose:
+
+{
+  "module_title": "<concise module title>",
+  "sections": [
+    {
+      "title": "<section name>",
+      "topics": [
+        {
+          "name": "<specific tickable topic>",
+          "starter_notes": "<1-2 sentence seed — what to learn, why it matters. Or ''>",
+          "resources": [
+            {"title": "<paper / video / blog title>",
+             "type": "<video / paper / article / code / docs>",
+             "authors": "<author or source>",
+             "url": "<URL if known, else ''>"}
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Be SPECIFIC in topic names. Don't make up URLs. 4-8 sections, 3-8 topics
+each. Output the JSON only — no markdown fence, no explanation.
+"""
+
+
+def _parse_module_json(text: str) -> dict | None:
+    """Strip optional markdown fence + parse. Returns the module dict or None on error."""
+    import json as _json, re as _re
+    s = text.strip()
+    s = _re.sub(r"^```(?:json)?\s*", "", s)
+    s = _re.sub(r"\s*```$", "", s)
+    try:
+        return _json.loads(s)
+    except _json.JSONDecodeError as e:
+        st.error(f"JSON parse error: {e}")
+        return None
+
+
+def _append_module_from_payload(data: dict, payload: dict) -> tuple[int, int]:
+    """Convert the prompt's JSON shape to a module + append to data. Returns (n_sections, n_topics)."""
+    mod = {"id": uid(), "title": payload.get("module_title", "Imported module"), "sections": []}
+    for s_in in payload.get("sections", []) or []:
+        sec = {"id": uid(), "title": s_in.get("title", ""), "topics": []}
+        for t_in in s_in.get("topics", []) or []:
+            sec["topics"].append({
+                "id": uid(),
+                "name": t_in.get("name", ""),
+                "done": False,
+                "notes_html": t_in.get("starter_notes", "") or "",
+                "resources": [
+                    {"title": r.get("title", ""), "type": r.get("type", ""),
+                     "authors": r.get("authors", ""), "url": r.get("url", ""),
+                     "reviewed": False}
+                    for r in (t_in.get("resources") or [])
+                ],
+            })
+        mod["sections"].append(sec)
+    # Replace by title if exists, else append
+    same = [i for i, m in enumerate(data["modules"]) if m["title"] == mod["title"]]
+    if same:
+        mod["id"] = data["modules"][same[0]]["id"]
+        data["modules"][same[0]] = mod
+    else:
+        data["modules"].append(mod)
+    n_sec = len(mod["sections"])
+    n_top = sum(len(s["topics"]) for s in mod["sections"])
+    return n_sec, n_top
+
+
+def import_module_ui(data: dict):
+    """Sidebar import UI — from AI prompt (JSON) or from a Word doc."""
+    tab_ai, tab_docx = st.tabs(["🤖 From AI prompt", "📄 From .docx"])
+
+    with tab_ai:
+        st.caption("Step 1 — paste this prompt into Claude in the source repo:")
+        st.code(NEW_MODULE_PROMPT, language="markdown")
+        st.caption("Step 2 — paste Claude's JSON reply below and click Import.")
+        text = st.text_area("JSON response", height=200, key="import_json_input",
+                            placeholder='{"module_title": "...", "sections": [...]}')
+        if st.button("Import module", key="import_json_btn"):
+            if not text.strip():
+                st.warning("Paste some JSON first.")
+            else:
+                payload = _parse_module_json(text)
+                if payload:
+                    n_sec, n_top = _append_module_from_payload(data, payload)
+                    save_data(data)
+                    st.success(f"Imported {payload.get('module_title', '?')}: {n_sec} sections, {n_top} topics.")
+                    st.rerun()
+
+    with tab_docx:
+        st.caption("Upload a course-notes .docx with an outline table (section / topic / covered).")
+        title = st.text_input("Module title", key="docx_title", placeholder="e.g. Module 9 — AI Ethics")
+        sub = st.text_input("Course subtitle (optional, only used if course is unset)", key="docx_sub",
+                            placeholder="e.g. Module 9 · L6 AI Engineer · Cambridge Spark")
+        upload = st.file_uploader("Word document", type=["docx"], key="docx_upload")
+        if st.button("Import from .docx", key="docx_btn"):
+            if not upload:
+                st.warning("Pick a .docx file first.")
+            elif not title.strip():
+                st.warning("Give the module a title.")
+            else:
+                try:
+                    import seed_from_docx as _seeder
+                    import tempfile, os as _os
+                    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                        tmp.write(upload.read())
+                        tmp_path = tmp.name
+                    try:
+                        rows = _seeder.parse_table(tmp_path)
+                        parsed = _seeder.build_data(rows, title=title, sub=sub)
+                        new_mod = parsed["modules"][0]
+                        # Append (replace by title if duplicate)
+                        same = [i for i, m in enumerate(data["modules"]) if m["title"] == new_mod["title"]]
+                        if same:
+                            new_mod["id"] = data["modules"][same[0]]["id"]
+                            data["modules"][same[0]] = new_mod
+                        else:
+                            data["modules"].append(new_mod)
+                        if sub and (not data.get("course_sub") or not data.get("course_title") or data["course_title"] == "My Learning Notes"):
+                            data["course_title"] = parsed["course_title"]
+                            data["course_sub"] = parsed["course_sub"]
+                        save_data(data)
+                        n_sec = len(new_mod["sections"])
+                        n_top = sum(len(s["topics"]) for s in new_mod["sections"])
+                        st.success(f"Imported {title}: {n_sec} sections, {n_top} topics.")
+                        st.rerun()
+                    finally:
+                        _os.unlink(tmp_path)
+                except Exception as e:
+                    st.error(f"Parse failed: {e}")
+
+
 # ── OVERVIEW SCREEN ───────────────────────────────────────────────────────────
 def overview():
     data = st.session_state.data
@@ -210,6 +354,8 @@ def overview():
                 if nm:
                     data["modules"].append({"id": uid(), "title": nm, "sections": []})
                     save_data(data); st.rerun()
+        with st.expander("📥 Import module"):
+            import_module_ui(data)
         st.divider()
         pomodoro()
 

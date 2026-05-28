@@ -730,10 +730,96 @@ def main():
 # ── SETUP TAB ────────────────────────────────────────────────────────────────
 
 
+NEW_PROJECT_PROMPT = """\
+I have a literature-review tool. Each project = one paper I'm writing.
+Read THIS repo and produce ONE JSON object I can paste into the tool.
+Use the paper's draft, README, .bib file, notes/PDFs, recent commits.
+Don't make things up — leave any field as "" or [] if you can't infer it.
+
+Output ONLY this JSON, no surrounding prose:
+
+{
+  "setup": {
+    "title": "<full paper title>",
+    "thesis": "<one-sentence main argument>",
+    "outline": [
+      {
+        "title": "<section name>",
+        "written": <true if section has substantive prose, else false>,
+        "subsections": [{"title": "<subsection>", "written": <bool>}]
+      }
+    ],
+    "deadlines": [{"label": "<e.g. EMNLP submission>", "date_iso": "YYYY-MM-DD"}],
+    "plans": "<TODO / next-steps notes>",
+    "default_tags": ["<3-6 lowercase topic tags>"],
+    "target_word_count": <integer; 8000 if unsure>,
+    "formatting_guidelines": "<venue-specific style notes, or ''>"
+  },
+  "draft_sections": {
+    "<exact outline title>": "<existing draft prose for that section>",
+    "<Parent > Child for subsections>": "<draft prose>"
+  },
+  "scratchpad": "<free-form research notes you find, or ''>"
+}
+
+Output the JSON only — no markdown fence.
+"""
+
+
+def _import_project_ui(project: dict, setup: dict):
+    """In-app importer: paste Claude's JSON, push to the current project."""
+    import json as _json, re as _re
+    st.caption("Step 1 — paste this prompt into Claude in the source paper repo:")
+    st.code(NEW_PROJECT_PROMPT, language="markdown")
+    st.caption("Step 2 — paste Claude's JSON reply and click Import.")
+    text = st.text_area(
+        "JSON response",
+        height=200,
+        key=f"lr_import_input_{project['id']}",
+        placeholder='{"setup": {...}, "draft_sections": {...}, "scratchpad": "..."}',
+    )
+    if st.button("Import into this project", key=f"lr_import_btn_{project['id']}"):
+        s = text.strip()
+        if not s:
+            st.warning("Paste some JSON first.")
+            return
+        s = _re.sub(r"^```(?:json)?\s*", "", s)
+        s = _re.sub(r"\s*```$", "", s)
+        try:
+            payload = _json.loads(s)
+        except _json.JSONDecodeError as e:
+            st.error(f"JSON parse error: {e}")
+            return
+        new_setup = payload.get("setup") or {}
+        if new_setup:
+            merged = dict(setup)
+            for k in ("title", "thesis", "outline", "deadlines", "plans",
+                      "default_tags", "target_word_count", "formatting_guidelines"):
+                if k in new_setup:
+                    merged[k] = new_setup[k]
+            save_setup(project, merged)
+        draft = payload.get("draft_sections") or {}
+        if draft:
+            save_draft(project, draft)
+        scratch = payload.get("scratchpad") or ""
+        if scratch:
+            save_scratchpad(project, scratch)
+        st.success(
+            f"Imported into {project['name']}: "
+            f"{len(new_setup.get('outline', []))} sections in outline, "
+            f"{len(draft)} drafted sections, "
+            f"{'scratchpad set' if scratch else 'no scratchpad'}."
+        )
+        st.rerun()
+
+
 def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     pid = project["id"]
     st.markdown("### Setup")
     st.caption("Project-level configuration: paper title, outline, deadlines, plans, formatting, and the paper list.")
+
+    with st.expander("📥 Import setup from JSON (paste a Claude-generated reply)"):
+        _import_project_ui(project, setup)
 
     new_title = st.text_input(
         "Paper title", value=setup.get("title", ""), key=f"setup_title_{pid}"
@@ -1327,7 +1413,6 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
         if k not in st.session_state:
             st.session_state[k] = ""
 
-    st.caption("Staging boxes — paste text, optionally ✨ Clean it via LLM, then click ✅ Add to Excel below to append + clear.")
 
     _staging_box(
         sk=quotes_key,
