@@ -1,0 +1,380 @@
+"""
+db.py — Postgres (Neon) data layer for the Literature Review tool.
+
+Replaces the per-project filesystem persistence (projects.json, setup.json,
+sources.xlsx, draft.json, scratchpad.md, time_log.json) with a single Neon
+database. Public function signatures match the originals so lit_review_app.py
+only needs a one-line import change.
+
+Connection URL comes from NEON_DATABASE_URL — set it in .env locally or in
+the Streamlit Cloud secrets panel when deployed.
+"""
+import datetime
+import json
+import os
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Optional
+
+import pandas as pd
+import psycopg
+from psycopg.types.json import Jsonb
+import streamlit as st
+
+
+SOURCE_COLS = [
+    "key", "title", "authors", "year", "venue", "source_type",
+    "doi", "url", "tags", "quotes", "notes", "thoughts", "summary",
+    "status", "drafted", "flag", "flag_note",
+]
+
+
+# ── Connection plumbing ───────────────────────────────────────────────────────
+
+
+def _read_dotenv():
+    here = Path(__file__).parent
+    for candidate in (here / ".env", here.parent / ".env", Path.cwd() / ".env"):
+        if not candidate.exists():
+            continue
+        for line in candidate.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            if k and k not in os.environ:
+                os.environ[k] = v
+
+
+_read_dotenv()
+
+
+def _url() -> str:
+    url = os.environ.get("NEON_DATABASE_URL", "")
+    if not url:
+        try:
+            url = st.secrets["NEON_DATABASE_URL"]
+        except Exception:
+            pass
+    if not url:
+        raise RuntimeError(
+            "NEON_DATABASE_URL is not set. Add it to .env (local) or to the "
+            "Streamlit Cloud secrets panel (deployed)."
+        )
+    return url
+
+
+@contextmanager
+def _conn():
+    c = psycopg.connect(_url(), connect_timeout=15)
+    try:
+        yield c
+        c.commit()
+    except Exception:
+        c.rollback()
+        raise
+    finally:
+        c.close()
+
+
+# ── Project registry (was projects.json) ──────────────────────────────────────
+
+
+def load_registry() -> dict:
+    """Return {active_project, projects: [{id, name, data_dir}]}."""
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("select active_project_id from lr_app_state where id = 'global'")
+        row = cur.fetchone()
+        active = row[0] if row else None
+        cur.execute("select id, name from lr_projects order by created_at, id")
+        projects = [
+            {"id": pid, "name": name, "data_dir": pid}  # data_dir kept for compat
+            for pid, name in cur.fetchall()
+        ]
+    return {"active_project": active, "projects": projects}
+
+
+def save_registry(reg: dict) -> None:
+    """Persist active_project + the project list. (Projects themselves are managed by create_project / delete_project.)"""
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "update lr_app_state set active_project_id = %s where id = 'global'",
+            (reg.get("active_project"),),
+        )
+
+
+def get_project(reg: dict, pid: Optional[str]) -> Optional[dict]:
+    if not pid:
+        return None
+    for p in reg.get("projects", []):
+        if p["id"] == pid:
+            return p
+    return None
+
+
+def project_data_dir(project: dict) -> Path:
+    """Kept for compat. Not used for storage anymore — returns a notional path."""
+    return Path(project.get("data_dir") or project["id"])
+
+
+# ── Project setup (was setup.json) ────────────────────────────────────────────
+
+
+def default_setup(title: str) -> dict:
+    return {
+        "title": title,
+        "thesis": "",
+        "outline": [],
+        "deadlines": [],
+        "plans": "",
+        "default_tags": [],
+        "target_word_count": 0,
+        "formatting_guidelines": "",
+    }
+
+
+def _migrate_outline(out) -> list:
+    """Same logic as the old load_setup: normalize legacy outline shapes + add stable IDs."""
+    import uuid
+    def _new_id() -> str:
+        return uuid.uuid4().hex[:8]
+    new_out = []
+    for s in (out or []):
+        if isinstance(s, str):
+            new_out.append({"id": _new_id(), "title": s, "written": False, "subsections": []})
+        elif isinstance(s, dict):
+            sec = {
+                "id": s.get("id") or _new_id(),
+                "title": s.get("title", ""),
+                "written": bool(s.get("written", False)),
+                "subsections": [],
+            }
+            for sub in s.get("subsections", []) or []:
+                if isinstance(sub, str):
+                    sec["subsections"].append({"id": _new_id(), "title": sub, "written": False})
+                elif isinstance(sub, dict):
+                    sec["subsections"].append({
+                        "id": sub.get("id") or _new_id(),
+                        "title": sub.get("title", ""),
+                        "written": bool(sub.get("written", False)),
+                    })
+            new_out.append(sec)
+    return new_out
+
+
+def load_setup(project: dict) -> dict:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "select title, thesis, outline, deadlines, plans, default_tags, "
+            "       target_word_count, formatting_guidelines "
+            "from lr_setup where project_id = %s",
+            (project["id"],),
+        )
+        row = cur.fetchone()
+    if not row:
+        return default_setup(project.get("name", ""))
+    title, thesis, outline, deadlines, plans, default_tags, target_wc, fmt = row
+    return {
+        "title": title or project.get("name", ""),
+        "thesis": thesis or "",
+        "outline": _migrate_outline(outline),
+        "deadlines": deadlines or [],
+        "plans": plans or "",
+        "default_tags": default_tags or [],
+        "target_word_count": int(target_wc or 0),
+        "formatting_guidelines": fmt or "",
+    }
+
+
+def save_setup(project: dict, setup: dict) -> None:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "insert into lr_setup (project_id, title, thesis, outline, deadlines, "
+            "                      plans, default_tags, target_word_count, formatting_guidelines) "
+            "values (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "on conflict (project_id) do update set "
+            "  title = excluded.title, thesis = excluded.thesis, "
+            "  outline = excluded.outline, deadlines = excluded.deadlines, "
+            "  plans = excluded.plans, default_tags = excluded.default_tags, "
+            "  target_word_count = excluded.target_word_count, "
+            "  formatting_guidelines = excluded.formatting_guidelines",
+            (
+                project["id"],
+                setup.get("title", ""),
+                setup.get("thesis", ""),
+                Jsonb(setup.get("outline", [])),
+                Jsonb(setup.get("deadlines", [])),
+                setup.get("plans", ""),
+                Jsonb(setup.get("default_tags", [])),
+                int(setup.get("target_word_count", 0) or 0),
+                setup.get("formatting_guidelines", ""),
+            ),
+        )
+
+
+# ── Project lifecycle ─────────────────────────────────────────────────────────
+
+
+def create_project(reg: dict, name: str) -> dict:
+    """Create a new project with a slugged id; return its row."""
+    base = name.lower().strip().replace(" ", "-").replace("/", "-")
+    base = "".join(c for c in base if c.isalnum() or c == "-") or "untitled"
+    existing = {p["id"] for p in reg.get("projects", [])}
+    pid, n = base, 1
+    while pid in existing:
+        n += 1
+        pid = f"{base}-{n}"
+
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "insert into lr_projects (id, name) values (%s, %s) "
+            "on conflict (id) do nothing",
+            (pid, name),
+        )
+    project = {"id": pid, "name": name, "data_dir": pid}
+    save_setup(project, default_setup(name))
+    save_draft(project, {})
+    save_scratchpad(project, "")
+    reg.setdefault("projects", []).append(project)
+    return project
+
+
+def delete_project(reg: dict, pid: str) -> None:
+    """Remove a project and all its data."""
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("delete from lr_projects where id = %s", (pid,))
+    reg["projects"] = [p for p in reg.get("projects", []) if p["id"] != pid]
+    if reg.get("active_project") == pid:
+        reg["active_project"] = reg["projects"][0]["id"] if reg["projects"] else None
+        save_registry(reg)
+
+
+# ── Sources (was sources.xlsx) ────────────────────────────────────────────────
+
+
+def load_sources(project: dict) -> pd.DataFrame:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "select " + ", ".join(SOURCE_COLS) + " from lr_sources "
+            "where project_id = %s order by position, id",
+            (project["id"],),
+        )
+        rows = cur.fetchall()
+    if not rows:
+        return pd.DataFrame(columns=SOURCE_COLS)
+    df = pd.DataFrame(rows, columns=SOURCE_COLS).astype(str).fillna("")
+    return df
+
+
+def save_sources(project: dict, df: pd.DataFrame) -> None:
+    """Replace the project's sources table atomically."""
+    df = df.copy()
+    for c in SOURCE_COLS:
+        if c not in df.columns:
+            df[c] = ""
+    df = df[SOURCE_COLS].fillna("").astype(str)
+
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("delete from lr_sources where project_id = %s", (project["id"],))
+        for i, row in enumerate(df.itertuples(index=False)):
+            vals = list(row) + [i]
+            cur.execute(
+                "insert into lr_sources "
+                "(project_id, " + ", ".join(SOURCE_COLS) + ", position) "
+                "values (%s, " + ", ".join(["%s"] * len(SOURCE_COLS)) + ", %s)",
+                [project["id"]] + vals,
+            )
+
+
+# ── Draft (was draft.json) ────────────────────────────────────────────────────
+
+
+def load_draft(project: dict) -> dict:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "select section_name, draft_text from lr_draft where project_id = %s",
+            (project["id"],),
+        )
+        return {name: text for name, text in cur.fetchall()}
+
+
+def save_draft(project: dict, draft: dict) -> None:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("delete from lr_draft where project_id = %s", (project["id"],))
+        for name, text in (draft or {}).items():
+            cur.execute(
+                "insert into lr_draft (project_id, section_name, draft_text) "
+                "values (%s, %s, %s)",
+                (project["id"], name, text or ""),
+            )
+
+
+# ── Scratchpad (was scratchpad.md) ────────────────────────────────────────────
+
+
+def load_scratchpad(project: dict) -> str:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "select content from lr_scratchpad where project_id = %s",
+            (project["id"],),
+        )
+        row = cur.fetchone()
+    return row[0] if row else ""
+
+
+def save_scratchpad(project: dict, text: str) -> None:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "insert into lr_scratchpad (project_id, content) values (%s, %s) "
+            "on conflict (project_id) do update set content = excluded.content",
+            (project["id"], text or ""),
+        )
+
+
+# ── Time log (was time_log.json) ──────────────────────────────────────────────
+
+
+def load_time_log(project: dict) -> list:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "select log_date, minutes from lr_time_log "
+            "where project_id = %s order by id",
+            (project["id"],),
+        )
+        return [{"date": str(d), "minutes": float(m)} for d, m in cur.fetchall()]
+
+
+def save_time_log(project: dict, log: list) -> None:
+    """Replace the project's full time log (matches old JSON-file semantics)."""
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("delete from lr_time_log where project_id = %s", (project["id"],))
+        for entry in log or []:
+            cur.execute(
+                "insert into lr_time_log (project_id, log_date, minutes) "
+                "values (%s, %s, %s)",
+                (
+                    project["id"],
+                    entry.get("date") or str(datetime.date.today()),
+                    entry.get("minutes", 0),
+                ),
+            )
+
+
+def log_session(project: dict, minutes: float) -> None:
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            "insert into lr_time_log (project_id, log_date, minutes) "
+            "values (%s, current_date, %s)",
+            (project["id"], float(minutes)),
+        )
+
+
+def time_by_day(log: list) -> dict:
+    """Same shape as the original (kept for compat)."""
+    totals: dict = {}
+    for entry in log:
+        d = entry.get("date", "")
+        totals[d] = totals.get(d, 0) + entry.get("minutes", 0)
+    return totals

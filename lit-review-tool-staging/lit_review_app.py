@@ -76,201 +76,23 @@ STATUS_LABELS = {
     "reviewed": "Reviewed",
 }
 
-SOURCE_COLS = [
-    "key", "title", "authors", "year", "venue", "source_type",
-    "doi", "url", "tags", "quotes", "notes", "thoughts", "summary",
-    "status", "drafted", "flag", "flag_note",
-]
-
-# ── Project registry ──────────────────────────────────────────────────────────
-
-
-def load_registry() -> dict:
-    if REGISTRY_FILE.exists():
-        with open(REGISTRY_FILE) as f:
-            return json.load(f)
-    return {"active_project": None, "projects": []}
-
-
-def save_registry(reg: dict):
-    REGISTRY_FILE.write_text(json.dumps(reg, indent=2))
-
-
-def get_project(reg: dict, pid: Optional[str]) -> Optional[dict]:
-    if not pid:
-        return None
-    for p in reg.get("projects", []):
-        if p["id"] == pid:
-            return p
-    return None
-
-
-def project_data_dir(project: dict) -> Path:
-    d = Path(project["data_dir"])
-    if not d.is_absolute():
-        d = DATA_DIR / d
-    return d
-
-
-def default_setup(title: str) -> dict:
-    return {
-        "title": title,
-        "thesis": "",
-        "outline": [],
-        "deadlines": [],
-        "plans": "",
-        "default_tags": [],
-        "target_word_count": 0,
-        "formatting_guidelines": "",
-    }
-
-
-def create_project(reg: dict, name: str) -> dict:
-    pid = name.lower().strip().replace(" ", "-").replace("/", "-")
-    pid = "".join(c for c in pid if c.isalnum() or c == "-")
-    if not pid:
-        pid = "untitled"
-    existing = {p["id"] for p in reg.get("projects", [])}
-    base = pid
-    n = 1
-    while pid in existing:
-        n += 1
-        pid = f"{base}-{n}"
-    data_dir = PROJECTS_DIR / pid
-    data_dir.mkdir(parents=True, exist_ok=True)
-    project = {
-        "id": pid,
-        "name": name,
-        "data_dir": str(data_dir.relative_to(DATA_DIR)),
-    }
-    reg.setdefault("projects", []).append(project)
-    save_setup(project, default_setup(name))
-    save_sources(project, pd.DataFrame(columns=SOURCE_COLS))
-    save_draft(project, {})
-    (data_dir / "scratchpad.md").write_text("")
-    (data_dir / "time_log.json").write_text("[]")
-    return project
-
-
-# ── Project data I/O ─────────────────────────────────────────────────────────
-
-
-def load_setup(project: dict) -> dict:
-    p = project_data_dir(project) / "setup.json"
-    if p.exists():
-        with open(p) as f:
-            data = json.load(f)
-        merged = default_setup(project.get("name", ""))
-        merged.update(data)
-        # Migrate outline: flat string list → structured; add stable IDs
-        out = merged.get("outline", [])
-        new_out = []
-        for s in out:
-            if isinstance(s, str):
-                sec = {"id": _new_id(), "title": s, "written": False, "subsections": []}
-            elif isinstance(s, dict):
-                sec = {
-                    "id": s.get("id") or _new_id(),
-                    "title": s.get("title", ""),
-                    "written": bool(s.get("written", False)),
-                    "subsections": [],
-                }
-                for sub in s.get("subsections", []):
-                    if isinstance(sub, str):
-                        sec["subsections"].append({"id": _new_id(), "title": sub, "written": False})
-                    elif isinstance(sub, dict):
-                        sec["subsections"].append({
-                            "id": sub.get("id") or _new_id(),
-                            "title": sub.get("title", ""),
-                            "written": bool(sub.get("written", False)),
-                        })
-            else:
-                continue
-            new_out.append(sec)
-        merged["outline"] = new_out
-        return merged
-    return default_setup(project.get("name", ""))
+# Data layer lives in db.py (Postgres / Neon). Public function signatures
+# match the original file-based helpers, so the rest of this file is unchanged.
+from db import (
+    SOURCE_COLS,
+    load_registry, save_registry, get_project, project_data_dir,
+    default_setup, create_project, delete_project,
+    load_setup, save_setup,
+    load_sources, save_sources,
+    load_draft, save_draft,
+    load_scratchpad, save_scratchpad,
+    load_time_log, save_time_log, log_session, time_by_day,
+)
 
 
 def _new_id() -> str:
     import uuid
     return uuid.uuid4().hex[:8]
-
-
-def save_setup(project: dict, setup: dict):
-    p = project_data_dir(project) / "setup.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(setup, indent=2))
-
-
-def load_sources(project: dict) -> pd.DataFrame:
-    p = project_data_dir(project) / "sources.xlsx"
-    if p.exists():
-        df = pd.read_excel(p, dtype=str).fillna("")
-        for c in SOURCE_COLS:
-            if c not in df.columns:
-                df[c] = ""
-        return df[SOURCE_COLS]
-    return pd.DataFrame(columns=SOURCE_COLS)
-
-
-def save_sources(project: dict, df: pd.DataFrame):
-    p = project_data_dir(project) / "sources.xlsx"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    df.to_excel(p, index=False)
-
-
-def load_draft(project: dict) -> dict:
-    p = project_data_dir(project) / "draft.json"
-    if p.exists():
-        with open(p) as f:
-            return json.load(f)
-    return {}
-
-
-def save_draft(project: dict, draft: dict):
-    p = project_data_dir(project) / "draft.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(draft, indent=2))
-
-
-def load_scratchpad(project: dict) -> str:
-    p = project_data_dir(project) / "scratchpad.md"
-    return p.read_text() if p.exists() else ""
-
-
-def save_scratchpad(project: dict, text: str):
-    p = project_data_dir(project) / "scratchpad.md"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text)
-
-
-def load_time_log(project: dict) -> list:
-    p = project_data_dir(project) / "time_log.json"
-    if p.exists():
-        with open(p) as f:
-            return json.load(f)
-    return []
-
-
-def save_time_log(project: dict, log: list):
-    p = project_data_dir(project) / "time_log.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(log, indent=2))
-
-
-def log_session(project: dict, minutes: float):
-    log = load_time_log(project)
-    log.append({"date": str(datetime.date.today()), "minutes": minutes})
-    save_time_log(project, log)
-
-
-def time_by_day(log: list) -> dict:
-    totals: dict = {}
-    for entry in log:
-        d = entry.get("date", "")
-        totals[d] = totals.get(d, 0) + entry.get("minutes", 0)
-    return totals
 
 
 # ── Source helpers ───────────────────────────────────────────────────────────
@@ -713,8 +535,39 @@ def render_pomodoro(project: dict):
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
+def _get_password() -> str:
+    """Read the LIT_REVIEW_PASSWORD gate value from env or Streamlit secrets."""
+    pw = os.environ.get("LIT_REVIEW_PASSWORD", "")
+    if pw:
+        return pw
+    try:
+        return st.secrets.get("LIT_REVIEW_PASSWORD", "")
+    except Exception:
+        return ""
+
+
+def _auth_gate():
+    """Block the app behind a password if LIT_REVIEW_PASSWORD is set. No-op otherwise."""
+    pw = _get_password()
+    if not pw:
+        return True
+    if st.session_state.get("lr_authed"):
+        return True
+    st.markdown("## Lit Review")
+    entered = st.text_input("Password", type="password", key="lr_pw_input")
+    if st.button("Enter", key="lr_pw_submit"):
+        if entered == pw:
+            st.session_state.lr_authed = True
+            st.rerun()
+        else:
+            st.error("Wrong password.")
+    return False
+
+
 def main():
     st.set_page_config(page_title="Lit Review", layout="wide", initial_sidebar_state="expanded")
+    if not _auth_gate():
+        return
     reg = load_registry()
     init_state(reg)
 

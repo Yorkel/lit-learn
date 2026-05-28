@@ -4,8 +4,9 @@ __pycache__/
 
 .env
 .env.*
+.streamlit/secrets.toml
 
-# data files live in each user's paper repo, not in the tool repo
+# legacy file-based storage — data now lives in Neon Postgres
 projects/
 projects.json
 scratchpad.md

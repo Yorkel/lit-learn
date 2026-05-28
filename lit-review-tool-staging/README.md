@@ -1,8 +1,8 @@
 # lit-review-tool
 
-A single-user, multi-project Streamlit tool for literature review. Built for academic writers managing several papers in parallel.
+A single-user, multi-project Streamlit tool for literature review. Built for academic writers managing several papers in parallel. Lives inside the [`lit-learn`](../README.md) repo; deployed as one Streamlit Community Cloud app.
 
-Each **project** is one paper you're writing. The tool stores per-project data in `./projects/<project-id>/` in whatever directory you run it from — so you can keep each paper's lit-review data inside that paper's own repo.
+Each **project** is one paper you're writing. The sidebar dropdown switches between them. All projects' data lives in one **Neon Postgres** database.
 
 ## What's in it
 
@@ -12,74 +12,66 @@ Each **project** is one paper you're writing. The tool stores per-project data i
 - **Compiled notes tab** — sortable / editable table of all sources
 - **Sidebar** — project switcher, Pomodoro timer, scratchpad, 🤔 Explain-to-me (paste any text → plain-language explanation)
 
-LLM features use Claude Haiku 4.5 and require `ANTHROPIC_API_KEY` in the env. They're optional — without the key, the buttons hide and the rest of the app works normally.
+LLM features use Claude Haiku 4.5 and require `ANTHROPIC_API_KEY`. They're optional — without the key, the ✨/🤔 buttons hide.
 
-## Install
-
-```bash
-# Option A — clone + run from any folder
-git clone https://github.com/<you>/lit-review-tool.git ~/lit-review-tool
-pip install -r ~/lit-review-tool/requirements.txt
-
-# Option B — pip install (editable) so you can `import lit_review_app`
-pip install -e ~/lit-review-tool
-```
-
-## Run
+## Run locally
 
 ```bash
-# Inside whichever paper repo you're working on
-cd ~/repos/my-paper
-streamlit run ~/lit-review-tool/lit_review_app.py
+cd lit-review-tool-staging
+pip install -r requirements.txt
+streamlit run lit_review_app.py        # → http://localhost:8501
 ```
 
-The app creates `./projects/` + `./projects.json` in the cwd. So Paper A's lit data lives in Paper A's repo; Paper B's in Paper B's; etc.
+Environment expects `NEON_DATABASE_URL`. Either set it in `.env` at the repo root (auto-loaded), or copy `secrets.toml.template` → `.streamlit/secrets.toml`.
 
-In a GitHub Codespace, Streamlit will prompt you to open the forwarded port (default 8501). The port stays private to you.
+## Deploy
+
+See the [top-level README](../README.md#first-time-deploy-to-streamlit-community-cloud) for the full Streamlit Cloud setup.
+
+Quick version:
+- Main file path: `lit-review-tool-staging/lit_review_app.py`
+- Secrets:
+  ```toml
+  NEON_DATABASE_URL = "postgresql://...pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+  LIT_REVIEW_PASSWORD = "..."        # optional gate
+  ANTHROPIC_API_KEY = "sk-ant-..."   # optional, enables ✨/🤔
+  ```
 
 ## Seed from a .bib
 
+`seed_from_bib.py` is still file-based — it produces a `sources.xlsx`. To get those rows into Neon afterwards:
+
 ```bash
-cd ~/repos/my-paper
-python ~/lit-review-tool/seed_from_bib.py refs.bib --project my-paper --create
+python seed_from_bib.py refs.bib --project my-paper --create
+python -c "
+import db, pandas as pd
+reg = db.load_registry()
+project = db.get_project(reg, 'my-paper')
+df = pd.read_excel('projects/my-paper/sources.xlsx', dtype=str).fillna('')
+db.save_sources(project, df)
+"
 ```
 
-This parses your `.bib` file, creates `./projects/my-paper/` if needed, and adds one row per entry to `sources.xlsx`. Existing keys are skipped.
-
-## .env
-
-Drop a `.env` in your paper repo (or its parent) with:
-
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-The tool auto-loads `.env` from the cwd, the cwd's parent, then the tool install dir. Don't commit `.env` (it's in this repo's `.gitignore` already; add to your paper repo's too).
+(Porting `seed_from_bib.py` to write directly to Neon is a small follow-up — see CLAUDE.md.)
 
 ## Data layout
 
-Inside each `./projects/<project-id>/`:
+All data in **Neon Postgres** (`public` schema, `lr_*` prefix):
 
-| File | Purpose |
+| Table | Purpose |
 |---|---|
-| `setup.json` | paper title, thesis, structured outline, deadlines, plans, default tags, target word count, formatting guidelines |
-| `sources.xlsx` | one row per cited paper (16 columns) |
-| `draft.json` | draft prose keyed by section / subsection |
-| `scratchpad.md` | free-form jottings, autosaved |
-| `time_log.json` | Pomodoro session log |
+| `lr_app_state` | singleton holding `active_project_id` |
+| `lr_projects` | `{id, name}` — one row per paper |
+| `lr_setup` | per-project: title, thesis, outline (jsonb), deadlines (jsonb), plans, default_tags, target_word_count, formatting_guidelines |
+| `lr_sources` | the 17-column sources table (was `sources.xlsx`) |
+| `lr_draft` | `(project_id, section_name) → draft_text` |
+| `lr_scratchpad` | per-project free-form text |
+| `lr_time_log` | per-project pomodoro session log |
 
-`./projects.json` is the registry of projects in this folder, with which one is active.
-
-## Updating the tool
-
-```bash
-cd ~/lit-review-tool && git pull
-```
-
-(or `pip install -U git+https://github.com/<you>/lit-review-tool.git` if you installed via pip.)
+Connection details live in `db.py`. See [CLAUDE.md](CLAUDE.md) for the full architecture rundown.
 
 ## Notes
 
-- Single user, single machine — no auth, no cloud sync
-- Designed for use inside a GitHub Codespace but works anywhere with Python 3.10+
-- See [CLAUDE.md](CLAUDE.md) for context if you're handing this repo to Claude Code for further development
+- Single user — no auth beyond the optional password gate
+- Designed for daily use from any browser; opening the same project in two tabs and editing concurrently will produce last-write-wins clobbering
+- See [CLAUDE.md](CLAUDE.md) for context if you're handing this to Claude Code for further development

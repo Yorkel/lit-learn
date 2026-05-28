@@ -19,16 +19,27 @@ Deploy (Streamlit Community Cloud):
     Set NOTES_PASSWORD and ANTHROPIC_API_KEY in Secrets panel
 """
 
-import json, os, time, datetime, random, string
-from pathlib import Path
+import os, time, datetime, random, string
 import streamlit as st
 
+from db import load_data, save_data, load_time, save_time, log_pomo, today_mins
+
 # ── Config ────────────────────────────────────────────────────────────────────
-DATA_FILE  = os.environ.get("LEARNING_NOTES_DATA", "learning_notes_data.json")
-TIME_FILE  = os.environ.get("LEARNING_NOTES_TIME", "learning_notes_time.json")
-PASSWORD   = os.environ.get("NOTES_PASSWORD", "")
-HAS_LLM    = bool(os.environ.get("ANTHROPIC_API_KEY"))
+def _secret(key: str) -> str:
+    val = os.environ.get(key, "")
+    if val:
+        return val
+    try:
+        return st.secrets.get(key, "")
+    except Exception:
+        return ""
+
+PASSWORD   = _secret("NOTES_PASSWORD")
+HAS_LLM    = bool(_secret("ANTHROPIC_API_KEY"))
 POMO_MINS  = 25
+# Ensure ANTHROPIC_API_KEY is in env so the anthropic SDK picks it up
+if HAS_LLM and not os.environ.get("ANTHROPIC_API_KEY"):
+    os.environ["ANTHROPIC_API_KEY"] = _secret("ANTHROPIC_API_KEY")
 
 # ── Data schema ───────────────────────────────────────────────────────────────
 # {
@@ -58,36 +69,6 @@ POMO_MINS  = 25
 #     }
 #   ]
 # }
-
-EMPTY = {"course_title": "My Learning Notes", "course_sub": "", "modules": []}
-
-def load_data():
-    if Path(DATA_FILE).exists():
-        with open(DATA_FILE) as f:
-            return json.load(f)
-    return EMPTY.copy()
-
-def save_data(d):
-    with open(DATA_FILE, "w") as f:
-        json.dump(d, f, indent=2)
-
-def load_time():
-    if Path(TIME_FILE).exists():
-        with open(TIME_FILE) as f:
-            return json.load(f)
-    return []
-
-def save_time(log):
-    with open(TIME_FILE, "w") as f:
-        json.dump(log, f, indent=2)
-
-def log_pomo(mins):
-    log = load_time()
-    log.append({"date": str(datetime.date.today()), "minutes": mins})
-    save_time(log)
-
-def today_mins():
-    return int(sum(e["minutes"] for e in load_time() if e.get("date") == str(datetime.date.today())))
 
 def uid():
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=8))

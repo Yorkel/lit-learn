@@ -2,9 +2,11 @@
 
 ## What this repo is
 
-`lit-review-tool` — a single-user, multi-project Streamlit literature-review tool. Each project is one paper the user is writing. Data lives in `./projects/<project-id>/` in whatever cwd the user invokes the tool from, so each paper's lit-review notes stay inside that paper's own repo.
+`lit-review-tool` — a single-user, multi-project Streamlit literature-review tool. Each project is one paper the user is writing.
 
-Originally built on 2026-05-27 inside `github.com/yorkel/sst-llm-judge` (a paper repo for an EMNLP submission) and lifted into its own repo on 2026-05-28 to be usable across multiple paper repos.
+**2026-05-28 update:** data was originally per-project filesystem (`./projects/<id>/setup.json`, `sources.xlsx`, `draft.json`, etc.) inside whatever cwd the tool was launched from. Now everything lives in a single **Neon Postgres** database, in `lr_*`-prefixed tables in the `public` schema. The multi-project model is preserved — projects are still keyed by id and the UI lets you switch between them — but all projects' data is in one central database instead of scattered across paper-repo folders.
+
+Originally built on 2026-05-27 inside `github.com/yorkel/sst-llm-judge`, lifted into its own repo + ported to Neon on 2026-05-28.
 
 ## Who the user is
 
@@ -25,32 +27,37 @@ She types fast and informally (lowercase, typos OK) and prefers terse responses 
 ### Files
 
 - `lit_review_app.py` — the Streamlit app (~1.9k LoC, single file)
-- `seed_from_bib.py` — CLI to seed a project's `sources.xlsx` from a `.bib` file
-- `requirements.txt` — `streamlit`, `pandas`, `openpyxl`, `anthropic`
+- `db.py` — Neon data layer; all file-I/O helpers were moved here, signatures preserved
+- `seed_from_bib.py` — CLI to seed a project's sources from a `.bib` file (legacy: writes xlsx; needs porting to also push to Neon)
+- `requirements.txt` — `streamlit`, `pandas`, `openpyxl`, `anthropic`, `psycopg[binary]`
 - `.streamlit/config.toml` — green theme (`#2D6E47` primary)
+- `secrets.toml.template` — copy to `.streamlit/secrets.toml` for local dev
 - `pyproject.toml` — declares the two top-level modules, `pip install -e .`-able
 
-### Data layout (in user's cwd, not in this repo)
+### Data layout (in Neon Postgres, `public` schema, prefix `lr_`)
 
-```
-./
-├── projects.json                  registry: {active_project, projects: [{id, name, data_dir}]}
-└── projects/
-    └── <project-id>/
-        ├── setup.json             paper title, thesis, structured outline, deadlines (DD-MM-YYYY UI / ISO storage), plans, default_tags, target_word_count, formatting_guidelines
-        ├── sources.xlsx           16-column table: key / title / authors / year / venue / source_type / doi / url / tags / quotes / notes / thoughts / summary / status / drafted / flag / flag_note
-        ├── draft.json             {section_name: "draft text"} — section names are flat strings like "Introduction" or "Introduction > Motivation"
-        ├── scratchpad.md          per-project free-form
-        └── time_log.json          [{"date": "YYYY-MM-DD", "minutes": N}, ...]
-```
+| Table | Purpose |
+|---|---|
+| `lr_app_state` | singleton row holding `active_project_id` |
+| `lr_projects` | `{id, name}` — one row per paper |
+| `lr_setup` | per-project paper config: title, thesis, outline (jsonb), deadlines (jsonb), plans, default_tags, target_word_count, formatting_guidelines |
+| `lr_sources` | one row per cited paper (the old `sources.xlsx` 17 columns) |
+| `lr_draft` | per `(project_id, section_name)`: the draft prose for that section |
+| `lr_scratchpad` | per-project free-form text |
+| `lr_time_log` | per-project pomodoro session log |
 
-`projects/` is in `.gitignore` — never committed to this tool repo.
+Connection comes from `NEON_DATABASE_URL` (env var or Streamlit secret). `db.py` auto-loads `.env` from its own dir, parent dir, and cwd.
 
-### Path conventions
+### What changed in the rewrite
 
-- `DATA_DIR = Path.cwd()` — where projects + registry live
-- `APP_DIR = Path(__file__).parent` — tool install location, used only for `.env` fallback
-- `_load_dotenv()` reads `.env` from cwd, cwd's parent, and the tool install dir
+- `load_registry()` / `save_registry()` now hit `lr_app_state` + `lr_projects` (no more `projects.json`).
+- `load_setup()` / `save_setup()` use `lr_setup` with `jsonb` columns for outline/deadlines.
+- `load_sources()` / `save_sources()` round-trip a pandas DataFrame through `lr_sources` (same 17 columns).
+- `load_draft()` / `save_draft()` use `(project_id, section_name)` PK on `lr_draft`.
+- `load_scratchpad()` / `save_scratchpad()` upsert into `lr_scratchpad`.
+- `log_session()` inserts into `lr_time_log`; `load_time_log()` reads ordered by id.
+- `project_data_dir()` still exists but returns a notional path — nothing writes to disk anymore.
+- New: `delete_project()` for clean removal.
 
 ### Tabs
 
@@ -101,6 +108,8 @@ If `ANTHROPIC_API_KEY` is not set, all LLM buttons hide and the rest of the app 
 
 ## When the user comes back
 
-She'll typically open a paper repo (e.g. `sst-llm-judge`, `public-sector-sst`, `AI-Governance-Analysis-UK-ROI`), clone or `git pull` this tool repo, and run `streamlit run ~/lit-review-tool/lit_review_app.py` from inside her paper repo. New paper = new project via the sidebar "+ New project" button; bib seeding is one-shot via `python ~/lit-review-tool/seed_from_bib.py ...`.
+She'll open the deployed Streamlit Cloud URL (one URL covers all her papers — projects are switchable in the sidebar). Local development is `streamlit run lit_review_app.py` from this directory with `NEON_DATABASE_URL` in env or `.streamlit/secrets.toml`.
 
-If something breaks, first move is to check `python3 -c "import ast; ast.parse(open('lit_review_app.py').read())"` and then run streamlit and read the traceback. Most failures are streamlit's widget-key / session-state rules (see Hard rules above).
+New paper = new project via the sidebar "+ New project" button. Bib seeding via `python seed_from_bib.py ...` still writes `sources.xlsx` to disk — needs porting to write directly to `lr_sources` table. For now, after running it, you can push the xlsx into Neon via `db.save_sources(project, pd.read_excel('path/to/sources.xlsx', dtype=str).fillna(''))`.
+
+If something breaks, first move is `python3 -c "import ast; ast.parse(open('lit_review_app.py').read())"` then run streamlit and read the traceback. Most failures are streamlit's widget-key / session-state rules (see Hard rules above). For DB issues, check `NEON_DATABASE_URL` is set and `db.load_registry()` works in a Python REPL.

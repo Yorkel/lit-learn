@@ -11,7 +11,7 @@ A Streamlit learning notes app with two screens:
 1. **Overview** — all modules listed, expandable to sections and topics, tick boxes, progress bars, add module/section/topic
 2. **Topic** — full topic map on the left sidebar, rich text notes editor on the right, chat panel (if API key set), resources table tab
 
-Data lives in `learning_notes_data.json`. Everything is local and private.
+Data lives in **Neon Postgres** — see `db.py` for the data layer. Tables are prefixed `ln_*` and live in the `public` schema. Connection string comes from `NEON_DATABASE_URL` (env var or Streamlit secrets).
 
 ---
 
@@ -21,20 +21,20 @@ Data lives in `learning_notes_data.json`. Everything is local and private.
 # 1. Install dependencies
 pip install -r requirements.txt --break-system-packages
 
-# 2. Seed data from a course notes Word doc (run once per module)
-python seed_from_docx.py 02_edukate_genai_llm_notes.docx \
-  --title "Generative AI and Large Language Models" \
-  --sub "Module 7 · L6 AI Engineer · Cambridge Spark"
+# 2. Set NEON_DATABASE_URL — either in repo-root .env (auto-loaded) or in
+#    .streamlit/secrets.toml. Copy the template to start:
+cp secrets.toml.template .streamlit/secrets.toml
+# Fill in NEON_DATABASE_URL, NOTES_PASSWORD (optional), ANTHROPIC_API_KEY (optional)
 
-# To add more modules, run again with a different docx:
-python seed_from_docx.py another_module.docx --title "ML in Production"
-
-# 3. Set secrets (optional but recommended)
-cp .streamlit/secrets.toml.template .streamlit/secrets.toml
-# Edit .streamlit/secrets.toml and fill in your values
-
-# 4. Run
+# 3. Run
 streamlit run app.py
+```
+
+The schema has already been applied to the Neon database (see [../supabase/schema.sql](../supabase/schema.sql) — yes despite the folder name, the file is Neon-compatible after the Supabase pivot). If you ever recreate the database, re-run that SQL.
+
+Optional one-off seeding from a Word doc still works via `seed_from_docx.py` — it writes to `learning_notes_data.json`, which you can then load into Neon via:
+```bash
+python -c "import db, json; db.save_data(json.load(open('learning_notes_data.json')))"
 ```
 
 ---
@@ -43,35 +43,28 @@ streamlit run app.py
 
 | Key | Purpose | Required? |
 |-----|---------|-----------|
+| `NEON_DATABASE_URL` | Connection string to the Neon Postgres database | **Yes** |
 | `NOTES_PASSWORD` | Password gate for the app | No — leave blank for no gate |
 | `ANTHROPIC_API_KEY` | Enables ✨ Clean up, Chat, Summarise | No — app works without it |
-| `LEARNING_NOTES_DATA` | Custom path for data file | No — defaults to `learning_notes_data.json` |
-| `LEARNING_NOTES_TIME` | Custom path for time log | No — defaults to `learning_notes_time.json` |
 
-Set these either in `.streamlit/secrets.toml` (local) or in the Streamlit Community Cloud Secrets panel (deployed).
+Set these either in repo-root `.env` (local, auto-loaded by `db.py`), in `.streamlit/secrets.toml` (local Streamlit), or in the Streamlit Community Cloud Secrets panel (deployed).
 
 ---
 
-## Deploying to Streamlit Community Cloud (live, password-protected)
+## Deploying to Streamlit Community Cloud
 
-1. Push this repo to GitHub (public or private)
-2. Go to [share.streamlit.io](https://share.streamlit.io) → New app
-3. Point at your repo, branch `main`, file `app.py`
-4. Click **Advanced settings → Secrets** and paste:
+1. Push this repo (`lit-learn`) to GitHub.
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
+3. Point at the repo, branch `main`, **Main file path** = `learning app/app.py` (note the space — Streamlit handles it fine).
+4. **Advanced settings → Secrets** — paste:
    ```toml
+   NEON_DATABASE_URL = "postgresql://...@ep-xxx-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
    NOTES_PASSWORD = "your-password-here"
    ANTHROPIC_API_KEY = "sk-ant-..."
    ```
-5. Deploy — you get a permanent URL to bookmark
+5. Deploy — first build ~2 min, then you get a permanent URL.
 
-**Important:** On Community Cloud, `learning_notes_data.json` must be committed to the repo for the app to find it on startup. Changes you make in the app write to the running container but won't persist after a restart. To preserve your notes, commit the data file periodically:
-```bash
-git add learning_notes_data.json
-git commit -m "update notes"
-git push
-```
-
-For fully persistent storage without manual commits, replace the file I/O in `app.py` with Supabase (free tier) — ask Claude Code to implement this if needed.
+Data persists in Neon, so container restarts don't lose anything. No more `git add learning_notes_data.json` dance.
 
 ---
 
@@ -106,15 +99,12 @@ The `notes_html` field in the data schema already stores HTML, so swapping in a 
 
 ```
 app.py                          Main Streamlit app
-seed_from_docx.py               One-time seeder from Word doc outline table
-requirements.txt                Python dependencies
-learning_notes_data.json        Your notes data (commit this)
-learning_notes_time.json        Pomodoro session log (gitignored)
+db.py                           Neon (Postgres) data layer — load_data/save_data/log_pomo/etc.
+seed_from_docx.py               One-off seeder (legacy: writes learning_notes_data.json)
+requirements.txt                Python deps (streamlit, anthropic, psycopg, python-docx)
+learning_notes_data.json        Historical seed; data now lives in Neon
 mockup_v7.html                  Approved design reference — open in browser
-.streamlit/
-  config.toml                   Streamlit theme config
-  secrets.toml.template         Template — copy and fill in
-  secrets.toml                  Your real secrets — NEVER commit
+secrets.toml.template           Template — copy to .streamlit/secrets.toml and fill in
 .gitignore
 CLAUDE.md                       This file
 ```
@@ -125,13 +115,14 @@ CLAUDE.md                       This file
 
 | Function | File | What it does |
 |----------|------|-------------|
-| `load_data()` / `save_data()` | app.py | Read/write the JSON data file |
+| `load_data()` / `save_data()` | db.py | Read/write the full nested data tree to Neon |
+| `load_time()` / `log_pomo()` / `today_mins()` | db.py | Pomodoro session log (per-day totals) |
 | `overview()` | app.py | Renders the overview screen |
 | `topic_screen()` | app.py | Renders the topic detail screen |
 | `pomodoro()` | app.py | Renders the Pomodoro timer (called from sidebar) |
 | `llm_clean()` | app.py | Calls Claude API to clean up pasted notes |
 | `llm_chat()` | app.py | Calls Claude API for topic chat |
-| `seed_from_docx.py` | — | Parses Word doc outline table → JSON |
+| `seed_from_docx.py` | — | Parses Word doc outline table → JSON file (one-off) |
 
 ---
 
@@ -141,13 +132,13 @@ CLAUDE.md                       This file
 The app has an "Add module" expander in the sidebar on the overview screen. Use that.
 
 **Rename a module/section/topic:**
-Edit `learning_notes_data.json` directly and restart the app, or add an edit UI — ask Claude Code to add inline rename inputs.
-
-**Add persistent storage (Supabase):**
-Replace `load_data()`/`save_data()` with Supabase client calls. The data schema is already JSON-compatible.
+Add an inline rename input to the UI — ask Claude Code. Direct database edits via Neon SQL editor are also fine.
 
 **Export all notes to Word doc:**
-Ask Claude Code to add a function using `python-docx` that iterates all modules, sections, topics and writes their `notes_html` content to a `.docx` file.
+Ask Claude Code to add a function using `python-docx` that iterates all modules, sections, topics and writes their `notes_html` content to a `.docx` file. The data layer already returns the full nested dict.
 
 **Add a new LLM feature:**
 Follow the pattern in `llm_clean()` — call `anthropic.Anthropic().messages.create()` and handle the response. All LLM features are gated behind `if HAS_LLM`.
+
+**Optimize per-click latency:**
+Wrap interactive panels (topic checkbox, notes textarea, chat panel) in `@st.fragment` so only that panel reruns on interaction instead of the whole script. Estimated ~2-3 hr pass to make the app feel snappy.
