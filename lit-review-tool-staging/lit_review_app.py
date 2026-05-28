@@ -96,6 +96,67 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:8]
 
 
+# ── Outline ↔ text helpers ─────────────────────────────────────────────────
+# The Setup-tab outline editor uses a single textarea with a markdown
+# checklist format. Sections at the start of the line, subsections indented
+# by 2 spaces. `[x]` = written, `[ ]` = not yet.
+_OUTLINE_LINE = __import__("re").compile(r"^(\s*)-\s*\[([ xX])\]\s*(.*)$")
+
+
+def outline_to_text(outline: list) -> str:
+    lines = []
+    for sec in (outline or []):
+        mark = "x" if sec.get("written") else " "
+        lines.append(f"- [{mark}] {sec.get('title', '')}")
+        for sub in (sec.get("subsections") or []):
+            sub_mark = "x" if sub.get("written") else " "
+            lines.append(f"  - [{sub_mark}] {sub.get('title', '')}")
+    return "\n".join(lines)
+
+
+def text_to_outline(text: str, previous: list) -> list:
+    """Parse the checklist back to outline shape. Preserves stable IDs by
+    matching titles against the previous outline."""
+    sec_ids = {sec.get("title", ""): sec.get("id") for sec in (previous or [])}
+    sub_ids = {}
+    for sec in (previous or []):
+        for sub in (sec.get("subsections") or []):
+            sub_ids[(sec.get("title", ""), sub.get("title", ""))] = sub.get("id")
+
+    out = []
+    current = None
+    for line in (text or "").splitlines():
+        m = _OUTLINE_LINE.match(line)
+        if not m:
+            # Allow bare lines as well — turn them into a top-level section
+            stripped = line.strip()
+            if not stripped:
+                continue
+            indent = ""
+            mark = " "
+            title = stripped
+        else:
+            indent, mark, title = m.groups()
+            title = title.strip()
+        if not title:
+            continue
+        written = mark.lower() == "x"
+        if len(indent) == 0:
+            sid = sec_ids.get(title) or _new_id()
+            current = {"id": sid, "title": title, "written": written, "subsections": []}
+            out.append(current)
+        else:
+            if current is None:
+                # Sub-item with no parent — promote to section
+                sid = sec_ids.get(title) or _new_id()
+                current = {"id": sid, "title": title, "written": written, "subsections": []}
+                out.append(current)
+            else:
+                sub_id = sub_ids.get((current["title"], title)) or _new_id()
+                current["subsections"].append({"id": sub_id, "title": title, "written": written})
+    return out
+
+
 # ── Source helpers ───────────────────────────────────────────────────────────
 
 
@@ -837,6 +898,10 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     pid = project["id"]
     st.markdown("### Setup")
 
+    # ─────────────────────────────────────────────────────────────────────
+    # SECTION 1 — Paper basics
+    # ─────────────────────────────────────────────────────────────────────
+    st.subheader("1. Paper basics")
     new_title = st.text_input(
         "Paper title", value=setup.get("title", ""), key=f"setup_title_{pid}"
     )
@@ -846,150 +911,75 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
         height=80,
         key=f"setup_thesis_{pid}",
     )
-
-    # ── Outline editor (structured, reorderable) ──
-    st.markdown("**Outline**")
-    st.caption("Reorder with ↑ / ↓. Tick when written. ✕ to remove. Click `+ subsection` / `+ section` to add empty rows.")
-    outline = setup.get("outline", [])
-    new_outline = []
-
-    def _commit_and_mutate(mutator):
-        """Read current widget values into a fresh outline list, then apply mutator and save."""
-        cur = []
-        for sec_ in outline:
-            sec_id = sec_.get("id") or _new_id()
-            title = st.session_state.get(f"sec_title_{pid}_{sec_id}", sec_.get("title", ""))
-            written = st.session_state.get(f"sec_written_{pid}_{sec_id}", sec_.get("written", False))
-            subs = []
-            for sub_ in sec_.get("subsections", []):
-                sub_id = sub_.get("id") or _new_id()
-                sub_title = st.session_state.get(f"sub_title_{pid}_{sec_id}_{sub_id}", sub_.get("title", ""))
-                sub_written = st.session_state.get(f"sub_written_{pid}_{sec_id}_{sub_id}", sub_.get("written", False))
-                subs.append({"id": sub_id, "title": sub_title, "written": sub_written})
-            cur.append({"id": sec_id, "title": title, "written": written, "subsections": subs})
-        mutator(cur)
+    if st.button("💾 Save basics", key=f"save_basics_{pid}", type="primary"):
         s = load_setup(project)
-        s["outline"] = cur
+        s["title"] = new_title
+        s["thesis"] = new_thesis
         save_setup(project, s)
-
-    for i, sec in enumerate(outline):
-        sec_id = sec.get("id") or _new_id()
-        with st.container(border=True):
-            # Visual badge: green pill with "Section N"
-            st.markdown(
-                f'<div style="background:#2D6E47;color:white;display:inline-block;'
-                f'padding:3px 14px;border-radius:6px;font-weight:600;font-size:0.95em;'
-                f'margin-bottom:8px;">Section {i + 1}</div>',
-                unsafe_allow_html=True,
-            )
-            # Section header row: [title] [✓] [↑] [↓] [✕]
-            c1, c2, c3, c4, c5 = st.columns([7.4, 1.2, 0.5, 0.5, 0.5])
-            with c1:
-                st.text_input(
-                    "Section title",
-                    value=sec.get("title", ""),
-                    key=f"sec_title_{pid}_{sec_id}",
-                    label_visibility="collapsed",
-                    placeholder="Section title",
-                )
-            with c2:
-                st.checkbox(
-                    "Written",
-                    value=bool(sec.get("written", False)),
-                    key=f"sec_written_{pid}_{sec_id}",
-                )
-            with c3:
-                if st.button("↑", key=f"sec_up_{pid}_{sec_id}", disabled=(i == 0), help="Move up"):
-                    def _up(cur, _i=i):
-                        cur[_i], cur[_i - 1] = cur[_i - 1], cur[_i]
-                    _commit_and_mutate(_up)
-                    st.rerun()
-            with c4:
-                if st.button("↓", key=f"sec_dn_{pid}_{sec_id}", disabled=(i == len(outline) - 1), help="Move down"):
-                    def _dn(cur, _i=i):
-                        cur[_i], cur[_i + 1] = cur[_i + 1], cur[_i]
-                    _commit_and_mutate(_dn)
-                    st.rerun()
-            with c5:
-                if st.button("✕", key=f"sec_del_{pid}_{sec_id}", help="Remove section"):
-                    def _del(cur, _i=i):
-                        cur.pop(_i)
-                    _commit_and_mutate(_del)
-                    st.rerun()
-
-            # Subsection rows — only render those that exist
-            subs = sec.get("subsections", [])
-            new_subs = []
-            for j, sub in enumerate(subs):
-                sub_id = sub.get("id") or _new_id()
-                sc0, sc1, sc2, sc3, sc4, sc5 = st.columns([0.5, 6.9, 1.2, 0.5, 0.5, 0.5])
-                with sc0:
-                    st.markdown(f"<small>↳ {i + 1}.{j + 1}</small>", unsafe_allow_html=True)
-                with sc1:
-                    st.text_input(
-                        "Subsection title",
-                        value=sub.get("title", ""),
-                        key=f"sub_title_{pid}_{sec_id}_{sub_id}",
-                        label_visibility="collapsed",
-                        placeholder="Subsection title",
-                    )
-                with sc2:
-                    st.checkbox(
-                        "Written",
-                        value=bool(sub.get("written", False)),
-                        key=f"sub_written_{pid}_{sec_id}_{sub_id}",
-                        label_visibility="collapsed",
-                    )
-                with sc3:
-                    if st.button("↑", key=f"sub_up_{pid}_{sec_id}_{sub_id}", disabled=(j == 0)):
-                        def _up(cur, _i=i, _j=j):
-                            s = cur[_i]["subsections"]
-                            s[_j], s[_j - 1] = s[_j - 1], s[_j]
-                        _commit_and_mutate(_up)
-                        st.rerun()
-                with sc4:
-                    if st.button("↓", key=f"sub_dn_{pid}_{sec_id}_{sub_id}", disabled=(j == len(subs) - 1)):
-                        def _dn(cur, _i=i, _j=j):
-                            s = cur[_i]["subsections"]
-                            s[_j], s[_j + 1] = s[_j + 1], s[_j]
-                        _commit_and_mutate(_dn)
-                        st.rerun()
-                with sc5:
-                    if st.button("✕", key=f"sub_del_{pid}_{sec_id}_{sub_id}"):
-                        def _del(cur, _i=i, _j=j):
-                            cur[_i]["subsections"].pop(_j)
-                        _commit_and_mutate(_del)
-                        st.rerun()
-                new_subs.append({
-                    "id": sub_id,
-                    "title": st.session_state.get(f"sub_title_{pid}_{sec_id}_{sub_id}", sub.get("title", "")),
-                    "written": st.session_state.get(f"sub_written_{pid}_{sec_id}_{sub_id}", sub.get("written", False)),
-                })
-
-            # + Subsection button (adds an empty subsection on click)
-            if st.button("+ subsection", key=f"add_sub_btn_{pid}_{sec_id}"):
-                def _add(cur, _i=i):
-                    cur[_i]["subsections"].append({"id": _new_id(), "title": "", "written": False})
-                _commit_and_mutate(_add)
-                st.rerun()
-
-            new_outline.append({
-                "id": sec_id,
-                "title": st.session_state.get(f"sec_title_{pid}_{sec_id}", sec.get("title", "")),
-                "written": st.session_state.get(f"sec_written_{pid}_{sec_id}", sec.get("written", False)),
-                "subsections": new_subs,
-            })
-
-    # + Section button (adds an empty section on click)
-    if st.button("+ section", key=f"add_sec_btn_{pid}"):
-        def _add(cur):
-            cur.append({"id": _new_id(), "title": "", "written": False, "subsections": []})
-        _commit_and_mutate(_add)
+        st.success("Saved.")
         st.rerun()
 
-    # ── Deadlines ──
+    st.divider()
+
+    # ─────────────────────────────────────────────────────────────────────
+    # SECTION 2 — Outline (simple markdown-checklist editor)
+    # ─────────────────────────────────────────────────────────────────────
+    st.subheader("2. Outline")
+    st.caption(
+        "One section per line. Indent 2 spaces for subsections. "
+        "`[x]` = written, `[ ]` = not yet. The `- [ ]` prefix is optional — "
+        "you can also just type plain text and it'll be treated as not-yet-written."
+    )
+    current_outline = setup.get("outline", []) or []
+    outline_text_default = outline_to_text(current_outline) or (
+        "- [ ] Introduction\n"
+        "  - [ ] Motivation\n"
+        "  - [ ] Contributions\n"
+        "- [ ] Related Work\n"
+        "- [ ] Method\n"
+        "- [ ] Results\n"
+        "- [ ] Discussion\n"
+        "- [ ] Conclusion"
+    )
+    new_outline_text = st.text_area(
+        "Outline",
+        value=outline_text_default,
+        height=280,
+        key=f"setup_outline_text_{pid}",
+        label_visibility="collapsed",
+    )
+    cols = st.columns([1, 1, 3])
+    with cols[0]:
+        if st.button("💾 Save outline", key=f"save_outline_{pid}", type="primary"):
+            parsed = text_to_outline(new_outline_text, current_outline)
+            s = load_setup(project)
+            s["outline"] = parsed
+            save_setup(project, s)
+            st.success(f"Saved {len(parsed)} section(s).")
+            st.rerun()
+    with cols[1]:
+        if st.button("🔄 Reset to saved", key=f"reset_outline_{pid}"):
+            st.rerun()  # discards in-memory edit by reloading the page
+    with cols[2]:
+        total_secs = len(current_outline)
+        total_subs = sum(len(s.get("subsections", []) or []) for s in current_outline)
+        written_secs = sum(1 for s in current_outline if s.get("written"))
+        written_subs = sum(1 for s in current_outline for sub in s.get("subsections", []) or [] if sub.get("written"))
+        st.caption(
+            f"Saved: **{total_secs}** sections · **{total_subs}** subsections · "
+            f"**{written_secs + written_subs}** ticked written"
+        )
+
+    st.divider()
+
+    # ─────────────────────────────────────────────────────────────────────
+    # SECTION 3 — Deadlines, plans, formatting & tags
+    # ─────────────────────────────────────────────────────────────────────
+    st.subheader("3. Deadlines, plans, formatting & tags")
+
+    # Deadlines — simple list editor
     st.markdown("**Deadlines**")
-    deadlines = setup.get("deadlines", [])
+    deadlines = setup.get("deadlines", []) or []
     new_deadlines = []
     if deadlines:
         for i, d in enumerate(deadlines):
@@ -997,19 +987,15 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
             iso_date = d.get("date", "")
             with c1:
                 dt = st.text_input(
-                    "Date",
-                    value=to_dmy(iso_date),
+                    "Date", value=to_dmy(iso_date),
                     key=f"dl_date_{pid}_{i}",
-                    label_visibility="collapsed",
-                    placeholder="DD-MM-YYYY",
+                    label_visibility="collapsed", placeholder="DD-MM-YYYY",
                 )
             with c2:
                 lbl = st.text_input(
-                    "Label",
-                    value=d.get("label", ""),
+                    "Label", value=d.get("label", ""),
                     key=f"dl_label_{pid}_{i}",
-                    label_visibility="collapsed",
-                    placeholder="label",
+                    label_visibility="collapsed", placeholder="label",
                 )
             with c3:
                 drop = st.button("✕", key=f"dl_del_{pid}_{i}", help="Remove")
@@ -1018,20 +1004,15 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     c1, c2 = st.columns([2, 5])
     with c1:
         add_dt = st.text_input(
-            "Add date",
-            key=f"dl_new_date_{pid}",
-            label_visibility="collapsed",
-            placeholder="DD-MM-YYYY",
+            "Add date", key=f"dl_new_date_{pid}",
+            label_visibility="collapsed", placeholder="+ DD-MM-YYYY",
         )
     with c2:
         add_lbl = st.text_input(
-            "Add label",
-            key=f"dl_new_label_{pid}",
-            label_visibility="collapsed",
-            placeholder="new deadline label",
+            "Add label", key=f"dl_new_label_{pid}",
+            label_visibility="collapsed", placeholder="+ new deadline label",
         )
 
-    # ── Plans / next steps ──
     new_plans = st.text_area(
         "Plans / next steps",
         value=setup.get("plans", ""),
@@ -1039,7 +1020,6 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
         key=f"setup_plans_{pid}",
     )
 
-    # ── Target word count ──
     c1, c2 = st.columns([1, 4])
     with c1:
         new_target = st.number_input(
@@ -1052,16 +1032,14 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     with c2:
         st.caption("Total target across all draft sections. 0 = no target.")
 
-    # ── Formatting guidelines ──
     new_format = st.text_area(
         "Formatting guidelines",
         value=setup.get("formatting_guidelines", ""),
         height=140,
         key=f"setup_format_{pid}",
-        placeholder="e.g. ACL 8-page main + appendix; A4; line numbers under review; ABBR conventions; British spelling…",
+        placeholder="e.g. ACL 8-page main + appendix; A4; British spelling…",
     )
 
-    # ── Default tags ──
     st.markdown("**Default tags** — suggested when adding new papers (comma-separated)")
     new_default_tags_str = st.text_input(
         "default tags",
@@ -1071,20 +1049,20 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     )
     new_default_tags = parse_tags(new_default_tags_str)
 
-    if st.button("Save setup", key=f"save_setup_{pid}", type="primary"):
+    if st.button("💾 Save deadlines / plans / formatting / tags",
+                 key=f"save_misc_{pid}", type="primary"):
         if add_dt or add_lbl:
             new_deadlines.append({"date": to_iso(add_dt), "label": add_lbl})
-        save_setup(project, {
-            "title": new_title,
-            "thesis": new_thesis,
-            "outline": new_outline,
+        s = load_setup(project)
+        s.update({
             "deadlines": new_deadlines,
             "plans": new_plans,
             "default_tags": new_default_tags,
             "target_word_count": int(new_target),
             "formatting_guidelines": new_format,
         })
-        st.success("Setup saved.")
+        save_setup(project, s)
+        st.success("Saved.")
         st.rerun()
 
     # ── Papers section ──
