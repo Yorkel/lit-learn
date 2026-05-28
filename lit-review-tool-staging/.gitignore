@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+
+.env
+.env.*
+
+# data files live in each user's paper repo, not in the tool repo
+projects/
+projects.json
+scratchpad.md
+time_log.json
+
+# build artefacts
+build/
+dist/
+*.egg-info/
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/

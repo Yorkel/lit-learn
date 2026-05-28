@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learning Notes v7</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;color:#1a1a1a;height:100vh;overflow:hidden;background:#f0efe8}
+.screen{display:none;height:100vh;flex-direction:column}
+.screen.on{display:flex}
+
+/* ── OVERVIEW ── */
+.ov-nav{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid #e0dfd8;background:#fff;flex-shrink:0}
+.ov-nav-title{font-size:16px;font-weight:700;flex:1}
+.ov-nav-sub{font-size:11px;color:#888;margin-top:2px}
+.btn{padding:5px 11px;border:1px solid #ddd;border-radius:7px;background:transparent;font-size:12px;cursor:pointer;color:#555;display:inline-flex;align-items:center;gap:4px;font-family:inherit;white-space:nowrap}
+.btn:hover{background:#f5f4f0}
+.btn.solid{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn.accent{background:#f0f7ff;color:#0C447C;border-color:#B5D4F4}
+.btn.chat-on{background:#e8f5e0;color:#3B6D11;border-color:#C0DD97}
+
+.ov-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;max-width:860px;width:100%;margin:0 auto}
+
+.ov-overall{display:flex;align-items:center;gap:16px;padding:13px 16px;border:1px solid #e0dfd8;border-radius:12px;background:#fff;margin-bottom:4px}
+.ov-big{font-size:28px;font-weight:700;line-height:1}
+.ov-lbl{font-size:11px;color:#888;margin-top:3px}
+.ov-right{flex:1}
+.ov-prow{display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:5px}
+.bar{background:#e0dfd8;border-radius:3px}
+.bar-f{border-radius:3px;transition:width 0.3s}
+.h6{height:6px}.h4{height:4px}.h3{height:3px}
+
+/* module accordion */
+.mod-block{border:1px solid #e0dfd8;border-radius:12px;background:#fff;overflow:hidden}
+.mod-hd{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none}
+.mod-hd:hover{background:#fafaf8}
+.mod-num{font-size:11px;color:#aaa;width:22px;flex-shrink:0;font-weight:600}
+.mod-name{font-size:13px;font-weight:600;flex:1}
+.mod-meta{font-size:11px;color:#aaa;margin-right:4px;white-space:nowrap}
+.mod-status{font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid;flex-shrink:0}
+.st-done{background:#EAF3DE;color:#3B6D11;border-color:#C0DD97}
+.st-prog{background:#FAEEDA;color:#854F0B;border-color:#FAC775}
+.st-not{background:#f5f5f2;color:#bbb;border-color:#e0dfd8}
+.mod-chev{font-size:13px;color:#bbb;transition:transform 0.18s;flex-shrink:0}
+.mod-chev.open{transform:rotate(180deg)}
+.mod-bar-row{padding:0 14px 10px;display:none}
+.mod-bar-row.open{display:block}
+
+/* sections inside module */
+.mod-sections{border-top:1px solid #f0efe8;display:none}
+.mod-sections.open{display:block}
+.sec-hd{display:flex;align-items:center;gap:7px;padding:6px 14px 6px 18px;cursor:pointer;border-bottom:1px solid #f5f4f0;background:#fafaf8;user-select:none}
+.sec-hd:hover{background:#f5f4f0}
+.sec-chev{font-size:11px;color:#bbb;transition:transform 0.18s;flex-shrink:0}
+.sec-chev.open{transform:rotate(180deg)}
+.sec-name{font-size:11px;font-weight:600;color:#666;flex:1;text-transform:uppercase;letter-spacing:0.05em}
+.sec-ct{font-size:10px;color:#bbb}
+.sec-bar{width:48px;height:3px;background:#e0dfd8;border-radius:2px;flex-shrink:0}
+.sec-bar-f{height:3px;border-radius:2px}
+.topic-list{display:none}
+.topic-list.open{display:block}
+.topic-row{display:flex;align-items:center;gap:8px;padding:5px 14px 5px 28px;border-bottom:1px solid #f8f7f2;cursor:pointer}
+.topic-row:hover{background:#fafaf8}
+.tick{width:14px;height:14px;border:1.5px solid #ccc;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.12s;background:#fff}
+.tick.on{background:#1a1a1a;border-color:#1a1a1a}
+.tick.on::after{content:'';width:3px;height:6px;border:1.5px solid #fff;border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);display:block}
+.topic-name{font-size:12px;flex:1;color:#1a1a1a;line-height:1.3}
+.open-btn{font-size:11px;padding:2px 8px;border:1px solid #e0dfd8;border-radius:5px;background:transparent;cursor:pointer;color:#888;font-family:inherit;flex-shrink:0}
+.open-btn:hover{background:#f0efe8;color:#1a1a1a}
+.add-topic-row{display:flex;gap:6px;padding:6px 14px 6px 28px;border-top:1px solid #f0efe8;background:#fafaf8}
+.add-inp{flex:1;border:1px solid #e0dfd8;border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;background:#fff;color:#1a1a1a}
+.add-inp::placeholder{color:#ccc}
+
+/* ── MODULE/TOPIC VIEW ── */
+.app{display:flex;height:100vh}
+.map{width:230px;min-width:230px;border-right:1px solid #e0dfd8;background:#f7f6f2;overflow-y:auto;flex-shrink:0}
+.map-hd{padding:10px 12px;border-bottom:1px solid #e0dfd8;display:flex;align-items:center;gap:7px}
+.map-back{font-size:20px;color:#888;cursor:pointer;line-height:1}
+.map-back:hover{color:#1a1a1a}
+.map-hd-text{flex:1}
+.map-title{font-size:12px;font-weight:600}
+.map-sub{font-size:10px;color:#888;margin-top:1px}
+.map-prog{padding:7px 12px;border-bottom:1px solid #e0dfd8}
+.prog-row{display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px}
+.msec-hd{display:flex;align-items:center;gap:5px;padding:5px 11px;cursor:pointer;border-bottom:1px solid #eee;background:#eeecea;user-select:none}
+.msec-hd:hover{background:#e5e3e0}
+.msec-name{font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:0.06em;flex:1}
+.msec-ct{font-size:10px;color:#aaa}
+.mchev{font-size:11px;color:#aaa;transition:transform 0.18s}
+.mchev.open{transform:rotate(180deg)}
+.mtlist{display:none}
+.mtlist.open{display:block}
+.mtrow{display:flex;align-items:center;gap:6px;padding:5px 12px 5px 13px;border-bottom:1px solid #f2f1eb;cursor:pointer;background:#fff}
+.mtrow:hover{background:#f7f6f2}
+.mtrow.active{background:#fff;border-left:2px solid #1a1a1a;padding-left:11px}
+.mtick{width:14px;height:14px;border:1.5px solid #ccc;border-radius:3px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s;background:#fff}
+.mtick.on{background:#1a1a1a;border-color:#1a1a1a}
+.mtick.on::after{content:'';width:3px;height:6px;border:1.5px solid #fff;border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);display:block}
+.mtname{font-size:12px;flex:1;line-height:1.3}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+.top-bar{padding:10px 16px;border-bottom:1px solid #e0dfd8;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.topic-title{font-size:15px;font-weight:700;flex:1}
+.topic-sec{font-size:11px;color:#888;margin-top:2px}
+.pom{display:flex;align-items:center;gap:8px;padding:5px 16px;border-bottom:1px solid #e0dfd8;background:#f7f6f2;flex-shrink:0}
+.pom-t{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:0.03em}
+.pom-bar{flex:1;height:3px;background:#ddd;border-radius:2px}
+.pom-fill{height:3px;border-radius:2px;background:#185FA5;width:0%;transition:width 0.5s linear}
+.view-tabs{display:flex;border-bottom:1px solid #e0dfd8;flex-shrink:0;padding:0 16px}
+.vtab{padding:7px 12px;font-size:12px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px}
+.vtab.on{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:600}
+.view{display:none;flex:1;overflow:hidden}
+.view.on{display:flex;flex-direction:column}
+.content-row{flex:1;display:flex;overflow:hidden}
+.editor-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.toolbar{display:flex;align-items:center;gap:2px;padding:6px 12px;border-bottom:1px solid #e0dfd8;flex-shrink:0;flex-wrap:wrap;background:#fafaf8}
+.tb-btn{width:28px;height:26px;border:1px solid transparent;border-radius:5px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#555;font-family:inherit;font-weight:600}
+.tb-btn:hover{background:#eee;border-color:#ddd}
+.tb-sep{width:1px;height:20px;background:#e0dfd8;margin:0 3px}
+.tb-label{font-size:10px;color:#aaa;padding:0 3px}
+.editor{flex:1;overflow-y:auto;padding:16px 20px;outline:none;line-height:1.8;font-size:13px}
+.editor h1{font-size:20px;font-weight:700;margin:14px 0 6px;color:#1a1a1a}
+.editor h1:first-child{margin-top:0}
+.editor h2{font-size:16px;font-weight:600;margin:12px 0 5px;color:#1a1a1a}
+.editor h3{font-size:14px;font-weight:600;margin:10px 0 4px;color:#333}
+.editor p{margin-bottom:5px}
+.editor ul,.editor ol{margin:4px 0 8px 20px}
+.editor li{margin-bottom:2px}
+.editor blockquote{border-left:3px solid #ddd;padding-left:12px;color:#666;margin:8px 0;font-style:italic}
+.editor pre{background:#f0efe8;padding:10px 12px;border-radius:7px;font-family:monospace;font-size:12px;margin:8px 0;white-space:pre-wrap}
+.editor:empty:before{content:attr(data-placeholder);color:#ccc;pointer-events:none}
+.chat-panel{width:280px;min-width:280px;border-left:1px solid #e0dfd8;display:flex;flex-direction:column;background:#fff;flex-shrink:0}
+.chat-panel.hidden{display:none}
+.chat-hd{padding:8px 12px;border-bottom:1px solid #e0dfd8;display:flex;align-items:center;gap:6px;background:#f7f6f2;flex-shrink:0}
+.chat-hd-title{font-size:12px;font-weight:600;flex:1}
+.icon-btn{width:24px;height:24px;border:1px solid #ddd;border-radius:5px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#888;font-size:13px}
+.icon-btn:hover{background:#f0efe8;color:#333}
+.chat-ctx{font-size:11px;color:#888;padding:5px 12px;border-bottom:1px solid #eee;flex-shrink:0;background:#fafaf8}
+.chat-msgs{flex:1;overflow-y:auto;padding:9px 11px;display:flex;flex-direction:column;gap:7px}
+.msg{padding:7px 9px;border-radius:8px;font-size:12px;line-height:1.6;max-width:96%}
+.msg.user{background:#1a1a1a;color:#fff;align-self:flex-end}
+.msg.ai{background:#f2f1eb;color:#1a1a1a;align-self:flex-start}
+.push-btn{font-size:10px;padding:2px 7px;border:1px solid #ddd;border-radius:4px;background:transparent;cursor:pointer;color:#888;font-family:inherit;margin-top:3px;display:block}
+.push-btn:hover{background:#f0efe8;color:#333}
+.chat-inp-area{border-top:1px solid #e0dfd8;padding:7px;flex-shrink:0;display:flex;gap:5px}
+.chat-inp{flex:1;border:1px solid #e0dfd8;border-radius:7px;padding:6px 9px;font-size:12px;font-family:inherit;resize:none;line-height:1.4}
+.chat-inp:focus{outline:none;border-color:#bbb}
+.chat-send{padding:6px 10px;border:none;border-radius:7px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer}
+.res-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid #e0dfd8;flex-shrink:0;flex-wrap:wrap;background:#fafaf8}
+.res-table-wrap{flex:1;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;color:#888;border-bottom:1px solid #e0dfd8;background:#f7f6f2;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;position:sticky;top:0}
+tbody td{padding:8px 12px;border-bottom:1px solid #f2f1eb;vertical-align:middle}
+tbody tr:hover{background:#fafaf8}
+.rtype{font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid}
+.rt-v{background:#FBEAF0;color:#72243E;border-color:#F4C0D1}
+.rt-p{background:#E6F1FB;color:#0C447C;border-color:#B5D4F4}
+.rt-c{background:#EEEDFE;color:#3C3489;border-color:#CECBF6}
+.rt-a{background:#FAEEDA;color:#633806;border-color:#FAC775}
+.rt-d{background:#EAF3DE;color:#3B6D11;border-color:#C0DD97}
+.rtick{width:16px;height:16px;border:1.5px solid #ccc;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s;background:#fff;margin:auto}
+.rtick.on{background:#1a1a1a;border-color:#1a1a1a}
+.rtick.on::after{content:'';width:3px;height:6px;border:1.5px solid #fff;border-top:none;border-left:none;transform:rotate(45deg) translateY(-1px);display:block}
+a.rlink{color:#185FA5;text-decoration:none;font-size:12px}
+a.rlink:hover{text-decoration:underline}
+select,input[type=text]{border:1px solid #ddd;border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;color:#1a1a1a;background:#fff}
+.bottom-bar{padding:7px 16px;border-top:1px solid #e0dfd8;display:flex;gap:7px;align-items:center;flex-shrink:0;background:#f7f6f2}
+</style>
+</head>
+<body>
+
+<!-- ══ OVERVIEW ══ -->
+<div class="screen on" id="screen-overview">
+  <div class="ov-nav">
+    <div style="flex:1">
+      <div class="ov-nav-title">L6 AI Engineer</div>
+      <div class="ov-nav-sub">Cambridge Spark · March 2025</div>
+    </div>
+    <button class="btn" onclick="addModule()"><i class="ti ti-plus"></i> Add module</button>
+    <button class="btn"><i class="ti ti-download"></i> Export all</button>
+  </div>
+
+  <div class="ov-body">
+    <div class="ov-overall">
+      <div><div class="ov-big">41</div><div class="ov-lbl">of 97 topics done</div></div>
+      <div class="ov-right">
+        <div class="ov-prow"><span>Overall progress</span><span style="font-weight:700">42%</span></div>
+        <div class="bar h6"><div class="bar-f h6" style="width:42%;background:#BA7517"></div></div>
+      </div>
+    </div>
+
+    <!-- Module 1 -->
+    <div class="mod-block">
+      <div class="mod-hd" onclick="toggleMod(this)">
+        <span class="mod-num">1</span>
+        <span class="mod-name">Foundations of Machine Learning</span>
+        <span class="mod-meta">8/8</span>
+        <span class="mod-status st-done">Complete</span>
+        <i class="ti ti-chevron-down mod-chev"></i>
+      </div>
+      <div class="mod-bar-row">
+        <div class="bar h4"><div class="bar-f h4" style="width:100%;background:#639922"></div></div>
+      </div>
+      <div class="mod-sections">
+        <div class="sec-hd" onclick="toggleSec(this)"><i class="ti ti-chevron-down sec-chev open"></i><span class="sec-name">Core concepts</span><span class="sec-ct">5/5</span><div class="sec-bar"><div class="sec-bar-f" style="width:100%;background:#639922"></div></div></div>
+        <div class="topic-list open">
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Linear regression and loss functions</span><button class="open-btn" onclick="openTopic('Linear regression and loss functions','Core concepts','Foundations of ML')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Gradient descent</span><button class="open-btn" onclick="openTopic('Gradient descent','Core concepts','Foundations of ML')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Bias-variance tradeoff</span><button class="open-btn" onclick="openTopic('Bias-variance tradeoff','Core concepts','Foundations of ML')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Cross-validation</span><button class="open-btn" onclick="openTopic('Cross-validation','Core concepts','Foundations of ML')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Feature engineering</span><button class="open-btn" onclick="openTopic('Feature engineering','Core concepts','Foundations of ML')">Open →</button></div>
+          <div class="add-topic-row"><input class="add-inp" placeholder="+ Add topic…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 7 -->
+    <div class="mod-block">
+      <div class="mod-hd" onclick="toggleMod(this)">
+        <span class="mod-num">7</span>
+        <span class="mod-name">Generative AI and Large Language Models</span>
+        <span class="mod-meta">18/28</span>
+        <span class="mod-status st-prog">In progress</span>
+        <i class="ti ti-chevron-down mod-chev open"></i>
+      </div>
+      <div class="mod-bar-row open">
+        <div class="bar h4"><div class="bar-f h4" style="width:65%;background:#BA7517"></div></div>
+      </div>
+      <div class="mod-sections open">
+        <div class="sec-hd" onclick="toggleSec(this)"><i class="ti ti-chevron-down sec-chev open"></i><span class="sec-name">Built and trained</span><span class="sec-ct">4/9</span><div class="sec-bar"><div class="sec-bar-f" style="width:44%;background:#BA7517"></div></div></div>
+        <div class="topic-list open">
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Pre-training, fine-tuning, RLHF</span><button class="open-btn" onclick="openTopic('Pre-training, fine-tuning, RLHF','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Instruction tuning and alignment</span><button class="open-btn" onclick="openTopic('Instruction tuning','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Transfer learning</span><button class="open-btn" onclick="openTopic('Transfer learning','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Tokenisation (BPE, WordPiece)</span><button class="open-btn" onclick="openTopic('Tokenisation','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Multi-head attention</span><button class="open-btn" onclick="openTopic('Multi-head attention','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Embeddings in depth</span><button class="open-btn" onclick="openTopic('Embeddings in depth','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Layer normalisation</span><button class="open-btn" onclick="openTopic('Layer normalisation','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Scaling laws (Chinchilla)</span><button class="open-btn" onclick="openTopic('Scaling laws','Built and trained','Generative AI and LLMs')">Open →</button></div>
+          <div class="add-topic-row"><input class="add-inp" placeholder="+ Add topic…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div>
+        </div>
+        <div class="sec-hd" onclick="toggleSec(this)"><i class="ti ti-chevron-down sec-chev open"></i><span class="sec-name">Deployed and used</span><span class="sec-ct">5/10</span><div class="sec-bar"><div class="sec-bar-f" style="width:50%;background:#BA7517"></div></div></div>
+        <div class="topic-list open">
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">The API and context window</span><button class="open-btn" onclick="openTopic('The API and context window','Deployed and used','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Prompting strategies</span><button class="open-btn" onclick="openTopic('Prompting strategies','Deployed and used','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Decoding strategies</span><button class="open-btn" onclick="openTopic('Decoding strategies','Deployed and used','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">RAG</span><button class="open-btn" onclick="openTopic('RAG','Deployed and used','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Agents and tool use</span><button class="open-btn" onclick="openTopic('Agents and tool use','Deployed and used','Generative AI and LLMs')">Open →</button></div>
+          <div class="add-topic-row"><input class="add-inp" placeholder="+ Add topic…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div>
+        </div>
+        <div class="sec-hd" onclick="toggleSec(this)"><i class="ti ti-chevron-down sec-chev"></i><span class="sec-name">Evaluated</span><span class="sec-ct">3/6</span><div class="sec-bar"><div class="sec-bar-f" style="width:50%;background:#BA7517"></div></div></div>
+        <div class="topic-list">
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Benchmarks and limitations</span><button class="open-btn" onclick="openTopic('Benchmarks','Evaluated','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">LLM-as-a-judge</span><button class="open-btn" onclick="openTopic('LLM-as-a-judge','Evaluated','Generative AI and LLMs')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">BLEU, ROUGE, BERTScore</span><button class="open-btn" onclick="openTopic('BLEU ROUGE BERTScore','Evaluated','Generative AI and LLMs')">Open →</button></div>
+          <div class="add-topic-row"><input class="add-inp" placeholder="+ Add topic…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 9 -->
+    <div class="mod-block">
+      <div class="mod-hd" onclick="toggleMod(this)">
+        <span class="mod-num">9</span>
+        <span class="mod-name">Machine Learning in Production</span>
+        <span class="mod-meta">5/13</span>
+        <span class="mod-status st-prog">In progress</span>
+        <i class="ti ti-chevron-down mod-chev"></i>
+      </div>
+      <div class="mod-bar-row">
+        <div class="bar h4"><div class="bar-f h4" style="width:38%;background:#BA7517"></div></div>
+      </div>
+      <div class="mod-sections">
+        <div class="sec-hd" onclick="toggleSec(this)"><i class="ti ti-chevron-down sec-chev open"></i><span class="sec-name">Serving patterns</span><span class="sec-ct">2/5</span><div class="sec-bar"><div class="sec-bar-f" style="width:40%;background:#BA7517"></div></div></div>
+        <div class="topic-list open">
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Batch vs API vs async inference</span><button class="open-btn" onclick="openTopic('Batch vs API vs async','Serving patterns','ML in Production')">Open →</button></div>
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Docker and containerisation</span><button class="open-btn" onclick="openTopic('Docker','Serving patterns','ML in Production')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Model contracts</span><button class="open-btn" onclick="openTopic('Model contracts','Serving patterns','ML in Production')">Open →</button></div>
+          <div class="add-topic-row"><input class="add-inp" placeholder="+ Add topic…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 10 -->
+    <div class="mod-block">
+      <div class="mod-hd" onclick="toggleMod(this)">
+        <span class="mod-num">10</span>
+        <span class="mod-name">Securing and Optimising ML Systems</span>
+        <span class="mod-meta">2/12</span>
+        <span class="mod-status st-not">Not started</span>
+        <i class="ti ti-chevron-down mod-chev"></i>
+      </div>
+      <div class="mod-bar-row">
+        <div class="bar h4"><div class="bar-f h4" style="width:17%;background:#BA7517"></div></div>
+      </div>
+      <div class="mod-sections">
+        <div class="sec-hd" onclick="toggleSec(this)"><i class="ti ti-chevron-down sec-chev"></i><span class="sec-name">Threat modelling</span><span class="sec-ct">1/4</span><div class="sec-bar"><div class="sec-bar-f" style="width:25%;background:#BA7517"></div></div></div>
+        <div class="topic-list">
+          <div class="topic-row"><div class="tick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Threat modelling for ML systems</span><button class="open-btn" onclick="openTopic('Threat modelling','Threat modelling','Securing ML Systems')">Open →</button></div>
+          <div class="topic-row"><div class="tick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="topic-name">Adversarial attacks</span><button class="open-btn" onclick="openTopic('Adversarial attacks','Threat modelling','Securing ML Systems')">Open →</button></div>
+          <div class="add-topic-row"><input class="add-inp" placeholder="+ Add topic…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ TOPIC VIEW ══ -->
+<div class="screen" id="screen-topic">
+  <div class="app">
+    <div class="map">
+      <div class="map-hd">
+        <span class="map-back" onclick="goHome()">←</span>
+        <div class="map-hd-text">
+          <div class="map-title" id="map-mod-title">Generative AI and LLMs</div>
+          <div class="map-sub" id="map-mod-sub">Module 7 · 18/28</div>
+        </div>
+      </div>
+      <div class="map-prog">
+        <div class="prog-row"><span id="map-prog-text">18 / 28</span><span style="font-weight:600" id="map-prog-pct">65%</span></div>
+        <div class="bar h4"><div class="bar-f h4" style="width:65%;background:#BA7517" id="map-prog-bar"></div></div>
+      </div>
+      <div>
+        <div class="msec-hd" onclick="toggleMSec(this)"><i class="ti ti-chevron-down mchev open"></i><span class="msec-name">Built and trained</span><span class="msec-ct">4/9</span></div>
+        <div class="mtlist open">
+          <div class="mtrow active" onclick="selTopic(this,'Pre-training, fine-tuning, RLHF','Built and trained')"><div class="mtick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Pre-training, fine-tuning, RLHF</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Instruction tuning','Built and trained')"><div class="mtick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Instruction tuning</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Transfer learning','Built and trained')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Transfer learning</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Tokenisation','Built and trained')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Tokenisation (BPE, WordPiece)</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Multi-head attention','Built and trained')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Multi-head attention</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Embeddings in depth','Built and trained')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Embeddings in depth</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Layer normalisation','Built and trained')"><div class="mtick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Layer normalisation</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="msec-hd" onclick="toggleMSec(this)"><i class="ti ti-chevron-down mchev open"></i><span class="msec-name">Deployed and used</span><span class="msec-ct">5/10</span></div>
+        <div class="mtlist open">
+          <div class="mtrow" onclick="selTopic(this,'The API and context window','Deployed and used')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">The API and context window</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Prompting strategies','Deployed and used')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Prompting strategies</span></div>
+          <div class="mtrow" onclick="selTopic(this,'RAG','Deployed and used')"><div class="mtick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">RAG</span></div>
+          <div class="mtrow" onclick="selTopic(this,'Agents and tool use','Deployed and used')"><div class="mtick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Agents and tool use</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="msec-hd" onclick="toggleMSec(this)"><i class="ti ti-chevron-down mchev open"></i><span class="msec-name">Evaluated</span><span class="msec-ct">3/6</span></div>
+        <div class="mtlist open">
+          <div class="mtrow" onclick="selTopic(this,'Benchmarks','Evaluated')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">Benchmarks and limitations</span></div>
+          <div class="mtrow" onclick="selTopic(this,'LLM-as-a-judge','Evaluated')"><div class="mtick" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">LLM-as-a-judge</span></div>
+          <div class="mtrow" onclick="selTopic(this,'BLEU ROUGE BERTScore','Evaluated')"><div class="mtick on" onclick="event.stopPropagation();this.classList.toggle('on')"></div><span class="mtname">BLEU, ROUGE, BERTScore</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="top-bar">
+        <div style="flex:1">
+          <div class="topic-title" id="d-title">Pre-training, fine-tuning, RLHF</div>
+          <div class="topic-sec" id="d-sec">Built and trained · Generative AI and LLMs</div>
+        </div>
+        <button class="btn solid"><i class="ti ti-check"></i> Mark done</button>
+        <button class="btn accent" id="chat-btn" onclick="toggleChat()"><i class="ti ti-message-circle"></i> Chat</button>
+        <button class="btn" onclick="downloadDoc()"><i class="ti ti-download"></i> Module doc</button>
+      </div>
+
+      <div class="pom">
+        <span style="font-size:11px;color:#888">Pomodoro</span>
+        <div class="pom-t" id="pom-t">25:00</div>
+        <div class="pom-bar"><div class="pom-fill" id="pom-fill"></div></div>
+        <button class="btn" id="pom-btn" onclick="pomToggle()" style="padding:3px 8px;font-size:11px"><i class="ti ti-player-play" style="font-size:11px"></i> Start</button>
+        <button class="btn" onclick="pomReset()" style="padding:3px 8px;font-size:11px"><i class="ti ti-refresh" style="font-size:11px"></i></button>
+        <span style="font-size:11px;color:#bbb" id="pom-today">Today: 0 min</span>
+      </div>
+
+      <div class="view-tabs">
+        <div class="vtab on" onclick="switchView('notes',this)">Notes</div>
+        <div class="vtab" onclick="switchView('resources',this)">Resources <span style="font-size:10px;color:#bbb;margin-left:2px">8</span></div>
+      </div>
+
+      <div class="view on" id="view-notes">
+        <div class="content-row">
+          <div class="editor-wrap">
+            <div class="toolbar">
+              <span class="tb-label">Format</span>
+              <button class="tb-btn" onclick="fmt('h1')" title="Heading 1"><b>H1</b></button>
+              <button class="tb-btn" onclick="fmt('h2')" title="Heading 2"><b>H2</b></button>
+              <button class="tb-btn" onclick="fmt('h3')" title="Heading 3"><b>H3</b></button>
+              <div class="tb-sep"></div>
+              <button class="tb-btn" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+              <button class="tb-btn" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+              <button class="tb-btn" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+              <div class="tb-sep"></div>
+              <button class="tb-btn" onclick="document.execCommand('insertUnorderedList')" title="Bullets"><i class="ti ti-list"></i></button>
+              <button class="tb-btn" onclick="document.execCommand('insertOrderedList')" title="Numbers"><i class="ti ti-list-numbers"></i></button>
+              <div class="tb-sep"></div>
+              <button class="tb-btn" onclick="insertPre()" title="Code block"><i class="ti ti-code"></i></button>
+              <div class="tb-sep"></div>
+              <button class="btn" style="font-size:11px;margin-left:4px" onclick="alert('AI cleans up your pasted notes')"><i class="ti ti-sparkles"></i> Clean up</button>
+              <button class="btn" style="font-size:11px" onclick="addToDoc()"><i class="ti ti-file-plus"></i> Add to module doc</button>
+            </div>
+            <div class="editor" id="editor" contenteditable="true" data-placeholder="Paste your notes here or start typing…">
+              <h2>Course notes</h2>
+              <p>Pre-training = train on massive unlabelled corpus to predict next token. Fine-tuning = continue on smaller labelled dataset. RLHF = human preference feedback → reward model → RL optimisation.</p>
+              <p>Key: pre-training gives world knowledge, fine-tuning + RLHF align behaviour to human preferences.</p>
+              <h2>My own exploration</h2>
+              <p>RLHF connects to my spec sensitivity work — the reward model is itself a specification choice. Who labels, on what tasks, with what rubric shapes what "aligned" means. Relevant to Paper C.</p>
+              <h3>To check</h3>
+              <ul>
+                <li>Explain the three-stage pipeline in own words</li>
+                <li>Compare RLHF with DPO</li>
+                <li>Read InstructGPT paper (Ouyang et al. 2022)</li>
+              </ul>
+            </div>
+          </div>
+          <div class="chat-panel hidden" id="chat-panel">
+            <div class="chat-hd">
+              <div class="chat-hd-title"><i class="ti ti-message-circle"></i> Chat about topic</div>
+              <button class="icon-btn" onclick="toggleChat()"><i class="ti ti-x"></i></button>
+            </div>
+            <div class="chat-ctx">Topic: <strong id="chat-ctx">Pre-training, fine-tuning, RLHF</strong></div>
+            <div class="chat-msgs" id="chat-msgs">
+              <div class="msg ai">Ask me anything about this topic.</div>
+              <div class="msg user">What's the difference between PPO and DPO?</div>
+              <div>
+                <div class="msg ai">PPO trains a separate reward model on human preferences, then uses RL to optimise (with KL penalty). Complex but proven.<br><br>DPO skips the reward model — trains directly on preference pairs. Simpler and cheaper, similar results.</div>
+                <button class="push-btn" onclick="pushToNotes('PPO: reward model + RL with KL penalty. DPO: no reward model, trains directly on preference pairs. DPO simpler and cheaper.')">+ Push to notes</button>
+              </div>
+            </div>
+            <div class="chat-inp-area">
+              <textarea class="chat-inp" id="chat-inp" rows="2" placeholder="Ask about this topic…"></textarea>
+              <button class="chat-send" onclick="sendChat()"><i class="ti ti-send"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="view" id="view-resources">
+        <div class="res-toolbar">
+          <input type="text" placeholder="Search…" style="width:150px" oninput="filterRes(this.value)">
+          <select onchange="filterType(this.value)"><option value="">All types</option><option>video</option><option>paper</option><option>article</option><option>code</option><option>docs</option></select>
+          <label style="font-size:12px;color:#666;display:flex;align-items:center;gap:4px"><input type="checkbox" onchange="filterUnrev(this.checked)"> Unreviewed only</label>
+          <button class="btn" style="margin-left:auto"><i class="ti ti-plus"></i> Add resource</button>
+          <button class="btn"><i class="ti ti-download"></i> Export .xlsx</button>
+        </div>
+        <div class="res-table-wrap">
+          <table>
+            <thead><tr><th style="width:34px">✓</th><th>Title</th><th style="width:72px">Type</th><th style="width:150px">Authors / Source</th><th style="width:60px">Link</th></tr></thead>
+            <tbody id="res-body">
+              <tr><td><div class="rtick on" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">Let's build ChatGPT from scratch</td><td><span class="rtype rt-v">video</span></td><td style="color:#666;font-size:12px">Andrej Karpathy</td><td><a href="#" class="rlink">YouTube</a></td></tr>
+              <tr><td><div class="rtick on" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">InstructGPT — training LMs to follow instructions</td><td><span class="rtype rt-p">paper</span></td><td style="color:#666;font-size:12px">Ouyang et al. (2022)</td><td><a href="#" class="rlink">arXiv</a></td></tr>
+              <tr><td><div class="rtick" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">Attention Is All You Need</td><td><span class="rtype rt-p">paper</span></td><td style="color:#666;font-size:12px">Vaswani et al. (2017)</td><td><a href="#" class="rlink">arXiv</a></td></tr>
+              <tr><td><div class="rtick on" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">Attention in transformers — visual explainer</td><td><span class="rtype rt-v">video</span></td><td style="color:#666;font-size:12px">3Blue1Brown</td><td><a href="#" class="rlink">YouTube</a></td></tr>
+              <tr><td><div class="rtick" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">Prompt engineering guide</td><td><span class="rtype rt-d">docs</span></td><td style="color:#666;font-size:12px">promptingguide.ai</td><td><a href="#" class="rlink">Web</a></td></tr>
+              <tr><td><div class="rtick" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">RAG vs fine-tuning</td><td><span class="rtype rt-a">article</span></td><td style="color:#666;font-size:12px">Chip Huyen</td><td><a href="#" class="rlink">Web</a></td></tr>
+              <tr><td><div class="rtick" onclick="this.classList.toggle('on')"></div></td><td style="font-weight:500">trl — RLHF in practice</td><td><span class="rtype rt-c">code</span></td><td style="color:#666;font-size:12px">Hugging Face</td><td><a href="#" class="rlink">GitHub</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <span style="font-size:11px;color:#bbb" id="doc-status">Module doc: nothing added yet</span>
+        <button class="btn" style="margin-left:auto" onclick="downloadDoc()"><i class="ti ti-download"></i> Download module doc (.md)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var moduleDoc=[];
+
+function toggleMod(hd){
+  var bar=hd.nextElementSibling,secs=bar.nextElementSibling,chev=hd.querySelector('.mod-chev');
+  bar.classList.toggle('open');secs.classList.toggle('open');chev.classList.toggle('open');
+}
+function toggleSec(hd){
+  var list=hd.nextElementSibling,chev=hd.querySelector('.sec-chev');
+  list.classList.toggle('open');chev.classList.toggle('open');
+}
+function toggleMSec(hd){
+  var list=hd.nextElementSibling,chev=hd.querySelector('.mchev');
+  list.classList.toggle('open');chev.classList.toggle('open');
+}
+function openTopic(name,section,module){
+  document.getElementById('d-title').textContent=name;
+  document.getElementById('d-sec').textContent=section+' · '+module;
+  document.getElementById('chat-ctx').textContent=name;
+  document.getElementById('screen-overview').classList.remove('on');
+  document.getElementById('screen-topic').classList.add('on');
+  document.querySelectorAll('.mtrow').forEach(t=>t.classList.remove('active'));
+}
+function selTopic(el,name,section){
+  document.querySelectorAll('.mtrow').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('d-title').textContent=name;
+  document.getElementById('d-sec').textContent=section+' · Generative AI and LLMs';
+  document.getElementById('chat-ctx').textContent=name;
+}
+function goHome(){
+  document.getElementById('screen-topic').classList.remove('on');
+  document.getElementById('screen-overview').classList.add('on');
+}
+function addModule(){
+  var name=prompt('Module name:');if(!name)return;
+  var body=document.querySelector('.ov-body');
+  var btn=body.querySelector('.btn.add-sec')||null;
+  var div=document.createElement('div');div.className='mod-block';
+  div.innerHTML='<div class="mod-hd" onclick="toggleMod(this)"><span class="mod-num">+</span><span class="mod-name">'+name+'</span><span class="mod-meta">0/0</span><span class="mod-status st-not">Not started</span><i class="ti ti-chevron-down mod-chev"></i></div><div class="mod-bar-row"><div class="bar h4"><div class="bar-f h4" style="width:0%;background:#BA7517"></div></div></div><div class="mod-sections"><div class="add-topic-row"><input class="add-inp" placeholder="+ Add section…"><button class="btn" style="padding:3px 8px;font-size:11px">Add</button></div></div>';
+  body.appendChild(div);
+}
+function switchView(name,el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('view-'+name).classList.add('on');el.classList.add('on');
+}
+function fmt(tag){
+  var ed=document.getElementById('editor');ed.focus();
+  var sel=window.getSelection();if(!sel.rangeCount)return;
+  var r=sel.getRangeAt(0);
+  var el=document.createElement(tag);
+  try{r.surroundContents(el);}catch(e){el.appendChild(r.extractContents());r.insertNode(el);}
+}
+function insertPre(){
+  var ed=document.getElementById('editor');
+  var el=document.createElement('pre');el.textContent='// code here';
+  var sel=window.getSelection();
+  if(sel.rangeCount){var r=sel.getRangeAt(0);r.collapse(false);r.insertNode(el);}
+  else ed.appendChild(el);
+  ed.focus();
+}
+function addToDoc(){
+  var ed=document.getElementById('editor');
+  var topic=document.getElementById('d-title').textContent;
+  if(!ed.innerText.trim()){alert('No notes yet.');return;}
+  moduleDoc.push({topic,text:ed.innerText});
+  document.getElementById('doc-status').textContent='Module doc: '+moduleDoc.length+' topic'+(moduleDoc.length===1?'':'s')+' added';
+}
+function downloadDoc(){
+  if(!moduleDoc.length){alert('Nothing added yet. Use "Add to module doc" in the toolbar.');return;}
+  var md='# Module Notes\n\n';
+  moduleDoc.forEach(e=>{md+='## '+e.topic+'\n\n'+e.text+'\n\n---\n\n';});
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown'}));
+  a.download='module_notes.md';a.click();
+}
+function toggleChat(){
+  document.getElementById('chat-panel').classList.toggle('hidden');
+  document.getElementById('chat-btn').classList.toggle('accent');
+  document.getElementById('chat-btn').classList.toggle('chat-on');
+}
+function sendChat(){
+  var inp=document.getElementById('chat-inp'),msgs=document.getElementById('chat-msgs');
+  if(!inp.value.trim())return;
+  var u=document.createElement('div');u.className='msg user';u.textContent=inp.value;msgs.appendChild(u);
+  var wrap=document.createElement('div');
+  var a=document.createElement('div');a.className='msg ai';a.innerHTML='In the real app this calls Claude with topic context. Placeholder for: <em>'+inp.value.substring(0,40)+'…</em>';
+  var pb=document.createElement('button');pb.className='push-btn';pb.textContent='+ Push to notes';
+  var q=inp.value;pb.onclick=function(){pushToNotes('AI response: '+q);};
+  wrap.appendChild(a);wrap.appendChild(pb);msgs.appendChild(wrap);
+  inp.value='';msgs.scrollTop=msgs.scrollHeight;
+}
+function pushToNotes(text){
+  var ed=document.getElementById('editor');
+  var p=document.createElement('p');p.textContent='[From chat] '+text;
+  ed.appendChild(p);ed.scrollTop=ed.scrollHeight;
+}
+function filterRes(q){q=q.toLowerCase();document.querySelectorAll('#res-body tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});}
+function filterType(v){document.querySelectorAll('#res-body tr').forEach(r=>{r.style.display=(!v||r.textContent.toLowerCase().includes(v))?'':'none';});}
+function filterUnrev(c){document.querySelectorAll('#res-body tr').forEach(r=>{r.style.display=(c&&r.querySelector('.rtick.on'))?'none':'';});}
+
+var pomR=false,pomS=null,pomE=0,pomT=25*60*1000,pomI=null,pomD=false,pomMin=0;
+function pomToggle(){
+  if(pomR){pomE+=Date.now()-pomS;pomR=false;clearInterval(pomI);document.getElementById('pom-btn').innerHTML='<i class="ti ti-player-play" style="font-size:11px"></i> Start';}
+  else{pomS=Date.now();pomR=true;pomD=false;pomI=setInterval(pomTick,500);document.getElementById('pom-btn').innerHTML='<i class="ti ti-player-pause" style="font-size:11px"></i> Pause';}
+}
+function pomTick(){
+  var el=pomE+(Date.now()-pomS),rem=Math.max(0,pomT-el);
+  var m=Math.floor(rem/60000),s=Math.floor((rem%60000)/1000);
+  document.getElementById('pom-t').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  document.getElementById('pom-fill').style.width=Math.round((el/pomT)*100)+'%';
+  if(rem===0&&!pomD){pomD=true;pomR=false;clearInterval(pomI);pomMin+=25;document.getElementById('pom-today').textContent='Today: '+pomMin+' min';document.getElementById('pom-btn').innerHTML='<i class="ti ti-player-play" style="font-size:11px"></i> Start';var pt=document.getElementById('pom-t');pt.style.color='#3B6D11';setTimeout(()=>pt.style.color='',3000);}
+}
+function pomReset(){clearInterval(pomI);pomR=false;pomS=null;pomE=0;pomD=false;document.getElementById('pom-t').textContent='25:00';document.getElementById('pom-fill').style.width='0%';document.getElementById('pom-btn').innerHTML='<i class="ti ti-player-play" style="font-size:11px"></i> Start';}
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lit-review-tool"
+version = "0.1.0"
+description = "Multi-project Streamlit literature-review tool for academic writers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "streamlit>=1.35.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "anthropic>=0.25.0",
+]
+
+[tool.setuptools]
+py-modules = ["lit_review_app", "seed_from_bib"]
