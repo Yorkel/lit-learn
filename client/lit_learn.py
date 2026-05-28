@@ -95,7 +95,7 @@ _read_dotenv()
 
 
 def _url() -> str:
-    url = os.environ.get("NEON_DATABASE_URL", "")
+    url = os.environ.get("NEON_DATABASE_URL", "").strip()
     if not url:
         raise RuntimeError(
             "NEON_DATABASE_URL is not set. Add it to .env in this repo "

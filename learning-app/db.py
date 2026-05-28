@@ -47,6 +47,7 @@ def _url() -> str:
             url = st.secrets["NEON_DATABASE_URL"]
         except Exception:
             pass
+    url = (url or "").strip()
     if not url:
         raise RuntimeError(
             "NEON_DATABASE_URL is not set. Add it to .env (local) or to the "
