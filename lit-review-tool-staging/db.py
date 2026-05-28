@@ -379,3 +379,72 @@ def time_by_day(log: list) -> dict:
         d = entry.get("date", "")
         totals[d] = totals.get(d, 0) + entry.get("minutes", 0)
     return totals
+
+
+# ── Cross-project duplicate detection ─────────────────────────────────────────
+#
+# A paper (identified by bibtex key) can live in multiple projects, but each
+# project gets its own row with its own notes. These helpers let the UI alert
+# the user when they're re-adding a paper that's already been reviewed
+# elsewhere, and copy across the prose fields (quotes / notes / thoughts /
+# summary / tags) without disturbing per-project metadata (status / flag /
+# drafted / position).
+
+# Fields that represent the user's *thinking* about the paper — safe to copy
+# between projects on request. Excludes metadata that's project-specific:
+# status, flag, flag_note, drafted, position.
+COPYABLE_REVIEW_FIELDS = ["quotes", "notes", "thoughts", "summary", "tags"]
+
+
+def find_paper_in_other_projects(current_project_id: str, key: str) -> list[dict]:
+    """Return a list of other projects that contain a source row with this bib key.
+
+    Each dict has: {project_id, project_name, has_notes (bool), <fields...>}
+    where the COPYABLE_REVIEW_FIELDS are included as keys. Excludes the
+    current project. Empty list if the paper is unique.
+    """
+    if not key:
+        return []
+    cols = ", ".join(COPYABLE_REVIEW_FIELDS)
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            f"select s.project_id, p.name, {cols} "
+            f"from lr_sources s join lr_projects p on p.id = s.project_id "
+            f"where s.key = %s and s.project_id <> %s",
+            (key, current_project_id),
+        )
+        rows = cur.fetchall()
+    results = []
+    for row in rows:
+        pid, pname, *field_vals = row
+        rec = {"project_id": pid, "project_name": pname}
+        for field, val in zip(COPYABLE_REVIEW_FIELDS, field_vals):
+            rec[field] = val or ""
+        rec["has_notes"] = any(rec[f].strip() for f in COPYABLE_REVIEW_FIELDS)
+        results.append(rec)
+    return results
+
+
+def copy_review_fields(src_project_id: str, dst_project_id: str, key: str,
+                       fields: list | None = None) -> bool:
+    """Copy review prose for a single paper from one project to another.
+
+    Only the fields in COPYABLE_REVIEW_FIELDS (default) are touched. Status,
+    flag, drafted, position are left alone on the destination row.
+    Returns True if a row was updated, False if either side is missing.
+    """
+    fields = fields or COPYABLE_REVIEW_FIELDS
+    fields = [f for f in fields if f in COPYABLE_REVIEW_FIELDS]
+    if not fields:
+        return False
+    cols = ", ".join(fields)
+    set_clause = ", ".join(f"{f} = src.{f}" for f in fields)
+    with _conn() as c, c.cursor() as cur:
+        cur.execute(
+            f"update lr_sources dst set {set_clause} "
+            f"from lr_sources src "
+            f"where dst.project_id = %s and dst.key = %s "
+            f"  and src.project_id = %s and src.key = %s",
+            (dst_project_id, key, src_project_id, key),
+        )
+        return cur.rowcount > 0

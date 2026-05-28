@@ -87,6 +87,7 @@ from db import (
     load_draft, save_draft,
     load_scratchpad, save_scratchpad,
     load_time_log, save_time_log, log_session, time_by_day,
+    find_paper_in_other_projects, copy_review_fields, COPYABLE_REVIEW_FIELDS,
 )
 
 
@@ -625,6 +626,23 @@ def main():
                     st.session_state.active_project_id = proj["id"]
                     st.rerun()
 
+        with st.expander("🗑 Delete current project"):
+            st.caption(
+                f"This permanently removes **{project['name']}** and all its sources, "
+                "setup, draft, scratchpad, and time log from the database. "
+                "Cannot be undone."
+            )
+            confirm_text = st.text_input(
+                f"Type the project id (`{project['id']}`) to confirm:",
+                key=f"del_proj_confirm_{project['id']}",
+            )
+            if st.button("Delete project", key=f"del_proj_btn_{project['id']}",
+                         type="primary", disabled=(confirm_text != project["id"])):
+                delete_project(reg, project["id"])
+                # delete_project already nulls active_project if needed; rerun picks the next one
+                st.success(f"Deleted {project['name']}.")
+                st.rerun()
+
         df = load_sources(project)
         setup = load_setup(project)
 
@@ -713,17 +731,19 @@ def main():
             st.caption("LLM features disabled — set ANTHROPIC_API_KEY")
 
     # ── Main tabs ──
-    tab_setup, tab_review, tab_draft, tab_compiled = st.tabs(
-        ["Setup", "Review", "Draft", "Compiled notes"]
+    tab_setup, tab_review, tab_notes, tab_draft, tab_library = st.tabs(
+        ["Setup", "Review", "Notes", "Draft Paper", "Library"]
     )
 
     with tab_setup:
         render_setup(project, setup, df)
     with tab_review:
         render_review(project, df, setup)
+    with tab_notes:
+        render_notes(project, df)
     with tab_draft:
         render_draft(project, df, setup)
-    with tab_compiled:
+    with tab_library:
         render_compiled(project, df)
 
 
@@ -816,10 +836,6 @@ def _import_project_ui(project: dict, setup: dict):
 def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     pid = project["id"]
     st.markdown("### Setup")
-    st.caption("Project-level configuration: paper title, outline, deadlines, plans, formatting, and the paper list.")
-
-    with st.expander("📥 Import setup from JSON (paste a Claude-generated reply)"):
-        _import_project_ui(project, setup)
 
     new_title = st.text_input(
         "Paper title", value=setup.get("title", ""), key=f"setup_title_{pid}"
@@ -1090,17 +1106,76 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
             if bib_text.strip():
                 entries = parse_bib_text(bib_text)
                 existing = set(df["key"].tolist())
-                added = 0
+                added_keys = []
                 for e in entries:
                     if e["key"] and e["key"] not in existing:
                         df = update_row(df, e["key"], {k: v for k, v in e.items() if k != "key"})
                         existing.add(e["key"])
-                        added += 1
+                        added_keys.append(e["key"])
                 save_sources(project, df)
-                st.success(f"Added {added} new paper(s) (skipped {len(entries) - added} already present).")
+                # Check which of the newly-added papers are already reviewed elsewhere
+                dups = []
+                for k in added_keys:
+                    others = find_paper_in_other_projects(pid, k)
+                    others_with_notes = [o for o in others if o["has_notes"]]
+                    if others_with_notes:
+                        dups.append({"key": k, "others": others_with_notes})
+                if dups:
+                    st.session_state[f"bulk_dups_{pid}"] = dups
+                st.success(f"Added {len(added_keys)} new paper(s) (skipped {len(entries) - len(added_keys)} already present).")
                 st.rerun()
             else:
                 st.warning("Paste some bib text first.")
+
+    # ── Bulk duplicate notice (after a bulk import) ──
+    bulk_dups = st.session_state.get(f"bulk_dups_{pid}")
+    if bulk_dups:
+        st.warning(
+            f"🔁 {len(bulk_dups)} of the newly-imported papers have prior reviews in other projects. "
+            f"Copy their notes across?"
+        )
+        for d in bulk_dups:
+            others = d["others"]
+            cols = st.columns([3, 2, 1])
+            with cols[0]:
+                st.caption(f"**{d['key']}**")
+            with cols[1]:
+                # If multiple sources, pick the first by default — let user override via dropdown
+                if len(others) > 1:
+                    pick = st.selectbox(
+                        "from",
+                        [o["project_id"] for o in others],
+                        key=f"bulk_dup_pick_{pid}_{d['key']}",
+                        label_visibility="collapsed",
+                    )
+                else:
+                    pick = others[0]["project_id"]
+                    st.caption(f"from `{others[0]['project_name']}`")
+            with cols[2]:
+                if st.button("Copy", key=f"bulk_dup_copy_{pid}_{d['key']}"):
+                    copy_review_fields(pick, pid, d["key"])
+                    st.session_state[f"bulk_dups_{pid}"] = [
+                        x for x in bulk_dups if x["key"] != d["key"]
+                    ]
+                    if not st.session_state[f"bulk_dups_{pid}"]:
+                        st.session_state.pop(f"bulk_dups_{pid}", None)
+                    st.rerun()
+        c_apply, c_dismiss = st.columns(2)
+        with c_apply:
+            if st.button("Copy all (using first match for each)", key=f"bulk_dup_copy_all_{pid}"):
+                for d in bulk_dups:
+                    pick = st.session_state.get(
+                        f"bulk_dup_pick_{pid}_{d['key']}",
+                        d["others"][0]["project_id"],
+                    )
+                    copy_review_fields(pick, pid, d["key"])
+                st.session_state.pop(f"bulk_dups_{pid}", None)
+                st.success(f"Copied notes for {len(bulk_dups)} papers.")
+                st.rerun()
+        with c_dismiss:
+            if st.button("Skip all (leave fresh)", key=f"bulk_dup_skip_{pid}"):
+                st.session_state.pop(f"bulk_dups_{pid}", None)
+                st.rerun()
 
     with st.expander("Add one paper"):
         col1, col2 = st.columns(2)
@@ -1127,8 +1202,47 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
                     "tags": o_tags, "status": "not_started",
                 })
                 save_sources(project, df)
+                # Check for prior reviews of this paper in other projects
+                others = find_paper_in_other_projects(pid, o_key)
+                if others:
+                    st.session_state[f"dup_notice_{pid}"] = {
+                        "key": o_key, "others": others,
+                    }
                 st.success(f"Added {o_key}.")
                 st.rerun()
+
+    # ── Cross-project duplicate notice (shown after adding) ──
+    notice = st.session_state.get(f"dup_notice_{pid}")
+    if notice:
+        with_notes = [o for o in notice["others"] if o["has_notes"]]
+        if with_notes:
+            st.warning(
+                f"🔁 **{notice['key']}** has been reviewed in "
+                + ", ".join(f"`{o['project_name']}`" for o in with_notes)
+                + ". Copy notes from one of them?"
+            )
+            for o in with_notes:
+                cols = st.columns([4, 1])
+                with cols[0]:
+                    preview = (o.get("notes") or o.get("quotes") or o.get("thoughts") or "")[:120]
+                    st.caption(f"From **{o['project_name']}** — {preview}…" if preview else f"From **{o['project_name']}**")
+                with cols[1]:
+                    if st.button(f"Copy", key=f"dup_copy_{pid}_{o['project_id']}"):
+                        copy_review_fields(o["project_id"], pid, notice["key"])
+                        st.session_state.pop(f"dup_notice_{pid}", None)
+                        st.success(f"Copied notes from `{o['project_name']}`.")
+                        st.rerun()
+            if st.button("Dismiss", key=f"dup_dismiss_{pid}"):
+                st.session_state.pop(f"dup_notice_{pid}", None)
+                st.rerun()
+        else:
+            # Paper exists elsewhere but no notes there — silent
+            st.session_state.pop(f"dup_notice_{pid}", None)
+
+    # ── Import setup from JSON (paste a Claude-generated reply) ──
+    st.divider()
+    with st.expander("📥 Import setup from JSON (paste a Claude-generated reply)"):
+        _import_project_ui(project, setup)
 
 
 # ── REVIEW TAB ───────────────────────────────────────────────────────────────
@@ -1575,7 +1689,7 @@ def render_draft(project: dict, df: pd.DataFrame, setup: dict):
     target = int(setup.get("target_word_count", 0) or 0)
     current_words = sum(len((draft.get(s, "") or "").split()) for s in sections)
 
-    st.markdown("### Draft")
+    st.markdown("### Draft Paper")
     if target:
         st.caption(f"Words: **{current_words:,} / {target:,}** ({current_words / target * 100:.0f}%)")
     else:
@@ -1729,13 +1843,158 @@ def render_draft(project: dict, df: pd.DataFrame, setup: dict):
 # ── COMPILED NOTES TAB ───────────────────────────────────────────────────────
 
 
+# ── NOTES TAB ────────────────────────────────────────────────────────────────
+
+
+def render_notes(project: dict, df: pd.DataFrame):
+    """Per-paper editable view of compiled review notes (quotes / notes /
+    thoughts / summary). One expander per paper. Auto-saves on edit.
+    Includes a Delete paper button."""
+    pid = project["id"]
+    st.markdown("### Notes")
+
+    if df.empty:
+        st.info("No papers yet. Add some via the Setup tab.")
+        return
+
+    # Filter + ordering
+    cols_top = st.columns([2, 2, 1])
+    with cols_top[0]:
+        q = st.text_input(
+            "Search title / authors / notes",
+            key=f"notes_search_{pid}",
+            placeholder="search…",
+            label_visibility="collapsed",
+        )
+    with cols_top[1]:
+        status_filter = st.selectbox(
+            "Status",
+            ["all", "reviewed", "partial", "not_started"],
+            key=f"notes_status_{pid}",
+            label_visibility="collapsed",
+        )
+    with cols_top[2]:
+        show_empty = st.checkbox(
+            "Hide empty",
+            key=f"notes_hide_empty_{pid}",
+            value=False,
+        )
+
+    flt = df.copy()
+    if status_filter != "all":
+        flt = flt[flt["status"] == status_filter]
+    if q:
+        ql = q.lower()
+        mask = (
+            flt["title"].str.lower().str.contains(ql, na=False)
+            | flt["authors"].str.lower().str.contains(ql, na=False)
+            | flt["notes"].str.lower().str.contains(ql, na=False)
+            | flt["quotes"].str.lower().str.contains(ql, na=False)
+            | flt["thoughts"].str.lower().str.contains(ql, na=False)
+            | flt["summary"].str.lower().str.contains(ql, na=False)
+        )
+        flt = flt[mask]
+    if show_empty:
+        empty_mask = (
+            flt["quotes"].fillna("").str.strip().eq("")
+            & flt["notes"].fillna("").str.strip().eq("")
+            & flt["thoughts"].fillna("").str.strip().eq("")
+            & flt["summary"].fillna("").str.strip().eq("")
+        )
+        flt = flt[~empty_mask]
+
+    st.caption(f"Showing {len(flt)} of {len(df)} papers.")
+
+    for _, row in flt.iterrows():
+        key = row["key"]
+        title = (row["title"] or key).strip() or key
+        authors = row["authors"] or ""
+        year = row["year"] or ""
+        has_any = any((row[f] or "").strip() for f in COPYABLE_REVIEW_FIELDS)
+        badge = "✅" if row.get("status") == "reviewed" else ("◐" if row.get("status") == "partial" else "○")
+        marker = "" if has_any else "  *(empty)*"
+        header = f"{badge}  **{title}** — {authors} {year}{marker}"
+        with st.expander(header, expanded=False):
+            df_now = load_sources(project)
+
+            new_summary = st.text_area(
+                "📝 Summary",
+                value=row.get("summary", "") or "",
+                key=f"notes_summary_{pid}_{key}",
+                height=100,
+            )
+            new_quotes = st.text_area(
+                "🗨 Quotes",
+                value=row.get("quotes", "") or "",
+                key=f"notes_quotes_{pid}_{key}",
+                height=130,
+            )
+            new_notes = st.text_area(
+                "📒 Notes",
+                value=row.get("notes", "") or "",
+                key=f"notes_notes_{pid}_{key}",
+                height=130,
+            )
+            new_thoughts = st.text_area(
+                "💭 Thoughts",
+                value=row.get("thoughts", "") or "",
+                key=f"notes_thoughts_{pid}_{key}",
+                height=100,
+            )
+            new_tags = st.text_input(
+                "Tags",
+                value=row.get("tags", "") or "",
+                key=f"notes_tags_{pid}_{key}",
+            )
+
+            changed = (
+                new_summary != (row.get("summary") or "")
+                or new_quotes != (row.get("quotes") or "")
+                or new_notes != (row.get("notes") or "")
+                or new_thoughts != (row.get("thoughts") or "")
+                or new_tags != (row.get("tags") or "")
+            )
+
+            cols = st.columns([1, 1, 4])
+            with cols[0]:
+                if st.button("💾 Save", key=f"notes_save_{pid}_{key}", disabled=not changed,
+                             width="stretch"):
+                    df_now = update_row(df_now, key, {
+                        "summary": new_summary, "quotes": new_quotes,
+                        "notes": new_notes, "thoughts": new_thoughts,
+                        "tags": new_tags,
+                    })
+                    save_sources(project, df_now)
+                    st.success("Saved.")
+                    st.rerun()
+            with cols[1]:
+                confirm_key = f"notes_del_confirm_{pid}_{key}"
+                if st.session_state.get(confirm_key):
+                    if st.button("⚠ Confirm delete", key=f"notes_del_yes_{pid}_{key}",
+                                 width="stretch"):
+                        df_after = df_now[df_now["key"] != key].reset_index(drop=True)
+                        save_sources(project, df_after)
+                        st.session_state.pop(confirm_key, None)
+                        st.success(f"Deleted {key}.")
+                        st.rerun()
+                else:
+                    if st.button("🗑 Delete paper", key=f"notes_del_{pid}_{key}",
+                                 width="stretch"):
+                        st.session_state[confirm_key] = True
+                        st.rerun()
+
+
+# ── LIBRARY TAB ──────────────────────────────────────────────────────────────
+
+
 def render_compiled(project: dict, df: pd.DataFrame):
     pid = project["id"]
-    st.markdown("### Compiled notes")
-    st.caption("Edit metadata / tags / status / flag / drafted status inline. Click Save when done.")
+    st.markdown("### Library")
     tag_filter = st.text_input(
-        "Filter by tag substring (blank = show all)",
+        "Filter by tag",
         key=f"compiled_tag_filter_{pid}",
+        placeholder="blank = show all",
+        label_visibility="collapsed",
     )
     flt = df
     if tag_filter:
