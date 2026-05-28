@@ -516,6 +516,7 @@ def parse_bib_text(text: str) -> list[dict]:
             "source_type": source_type,
             "doi": gf("doi"),
             "url": gf("url") or gf("doi"),
+            "abstract": gf("abstract"),
             "tags": "",
             "quotes": "",
             "notes": "",
@@ -1348,6 +1349,11 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
         meta = [p for p in [row.get('authors'), row.get('year'), row.get('venue'), row.get('source_type')] if p]
         st.caption("  ·  ".join(meta) or "(no metadata)")
 
+        abstract = (row.get("abstract") or "").strip()
+        if abstract:
+            with st.expander("📄 Abstract", expanded=False):
+                st.markdown(abstract)
+
         c1, c2 = st.columns([3, 2])
         with c1:
             if row.get("url"):
@@ -1849,8 +1855,13 @@ def _notes_paper_card(project: dict, key: str):
     row = rows.iloc[0]
     pid = project["id"]
 
+    new_abstract = st.text_area(
+        "📄 Abstract", value=row.get("abstract", "") or "",
+        key=f"notes_abstract_{pid}_{key}", height=120,
+        help="The paper's own abstract — reference material, not your notes.",
+    )
     new_summary = st.text_area(
-        "📝 Summary", value=row.get("summary", "") or "",
+        "📝 AI summary", value=row.get("summary", "") or "",
         key=f"notes_summary_{pid}_{key}", height=100,
     )
     new_quotes = st.text_area(
@@ -1871,7 +1882,8 @@ def _notes_paper_card(project: dict, key: str):
     )
 
     changed = (
-        new_summary != (row.get("summary") or "")
+        new_abstract != (row.get("abstract") or "")
+        or new_summary != (row.get("summary") or "")
         or new_quotes != (row.get("quotes") or "")
         or new_notes != (row.get("notes") or "")
         or new_thoughts != (row.get("thoughts") or "")
@@ -1883,6 +1895,7 @@ def _notes_paper_card(project: dict, key: str):
         if st.button("💾 Save", key=f"notes_save_{pid}_{key}",
                      disabled=not changed, width="stretch"):
             df_now = update_row(df_now, key, {
+                "abstract": new_abstract,
                 "summary": new_summary, "quotes": new_quotes,
                 "notes": new_notes, "thoughts": new_thoughts,
                 "tags": new_tags,

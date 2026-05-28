@@ -178,6 +178,7 @@ create table if not exists public.lr_sources (
   source_type   text not null default '',
   doi           text not null default '',
   url           text not null default '',
+  abstract      text not null default '',
   tags          text not null default '',
   quotes        text not null default '',
   notes         text not null default '',
