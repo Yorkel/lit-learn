@@ -1444,71 +1444,7 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
 
     st.divider()
 
-    # ── 📝 Summary (LLM-generated, editable) ──
-    st.markdown("### 📝 Summary")
-    st.caption("Two paragraphs: what the paper says + how it relates to your paper. Editable; autosaves.")
-    summary_key = f"summary_{pid}_{key}"
-    summary_pending_key = f"_pending_sum_{summary_key}"
-    if summary_key not in st.session_state:
-        st.session_state[summary_key] = row.get("summary", "")
-
-    # Run pending Generate call BEFORE rendering
-    if st.session_state.get(summary_pending_key):
-        with st.spinner("✨ Generating summary…"):
-            try:
-                st.session_state[summary_key] = llm_summarise_paper(
-                    paper_meta=row,
-                    quotes=row.get("quotes", ""),
-                    notes=row.get("notes", ""),
-                    thoughts=row.get("thoughts", ""),
-                    thesis=setup.get("thesis", ""),
-                )
-            except Exception as e:
-                st.session_state[f"_sum_err_{summary_key}"] = str(e)
-        st.session_state[summary_pending_key] = False
-        st.rerun()
-
-    if HAS_API_KEY:
-        sc1, sc2 = st.columns([5, 1])
-    else:
-        sc1, sc2 = st.container(), None
-
-    with sc1:
-        st.text_area(
-            "summary_box",
-            key=summary_key,
-            height=200,
-            placeholder="Click ✨ Generate to draft a summary, then edit freely.",
-            label_visibility="collapsed",
-        )
-
-    if HAS_API_KEY and sc2 is not None:
-        with sc2:
-            st.write("")
-
-            def _request_summary():
-                st.session_state[summary_pending_key] = True
-
-            st.button(
-                "✨ Generate",
-                key=f"sum_btn_{pid}_{key}",
-                on_click=_request_summary,
-                help="Two-paragraph summary via Claude Haiku, drawn from your saved quotes / notes / thoughts",
-                width="stretch",
-            )
-
-    err = st.session_state.pop(f"_sum_err_{summary_key}", None)
-    if err:
-        st.warning(f"Summary failed: {err}")
-
-    cur_summary = st.session_state[summary_key]
-    if cur_summary != row.get("summary", ""):
-        df = update_row(df, key, {"summary": cur_summary})
-        save_sources(project, df)
-
-    st.divider()
-
-    # ── Staging-buffer text boxes ──
+    # ── Staging-buffer text boxes (order: notes → quotes → thoughts) ──
     quotes_key = f"stage_quotes_{pid}_{key}"
     notes_key = f"stage_notes_{pid}_{key}"
     thoughts_key = f"stage_thoughts_{pid}_{key}"
@@ -1516,20 +1452,19 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
         if k not in st.session_state:
             st.session_state[k] = ""
 
-
-    _staging_box(
-        sk=quotes_key,
-        label="Direct quotes — paste verbatim from the source",
-        placeholder="Paste direct quotes here.",
-    )
     _staging_box(
         sk=notes_key,
-        label="Notes to summarise — paraphrases, summary points",
+        label="1. Notes to summarise — paraphrases, summary points",
         placeholder="Paraphrase or summarise.",
     )
     _staging_box(
+        sk=quotes_key,
+        label="2. Direct quotes — paste verbatim from the source",
+        placeholder="Paste direct quotes here.",
+    )
+    _staging_box(
         sk=thoughts_key,
-        label="My thoughts — how it relates to my paper",
+        label="3. My thoughts — how it relates to my paper",
         placeholder="Contrasts, alignments, arguments.",
     )
 
@@ -1570,17 +1505,81 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
 
     # View saved
     with st.expander("View saved notes for this paper"):
-        if row.get("quotes"):
-            st.markdown("**Direct quotes**")
-            st.markdown(row["quotes"])
         if row.get("notes"):
             st.markdown("**Notes**")
             st.markdown(row["notes"])
+        if row.get("quotes"):
+            st.markdown("**Direct quotes**")
+            st.markdown(row["quotes"])
         if row.get("thoughts"):
             st.markdown("**My thoughts**")
             st.markdown(row["thoughts"])
         if not (row.get("quotes") or row.get("notes") or row.get("thoughts")):
             st.caption("(Nothing saved yet for this paper.)")
+
+    st.divider()
+
+    # ── 4. 📝 Paper review (LLM-generated, editable) ──
+    st.markdown("### 4. 📝 Paper review")
+    st.caption("Two paragraphs: what the paper says + how it relates to your paper. Editable; autosaves.")
+    summary_key = f"summary_{pid}_{key}"
+    summary_pending_key = f"_pending_sum_{summary_key}"
+    if summary_key not in st.session_state:
+        st.session_state[summary_key] = row.get("summary", "")
+
+    # Run pending Generate call BEFORE rendering
+    if st.session_state.get(summary_pending_key):
+        with st.spinner("✨ Generating summary…"):
+            try:
+                st.session_state[summary_key] = llm_summarise_paper(
+                    paper_meta=row,
+                    quotes=row.get("quotes", ""),
+                    notes=row.get("notes", ""),
+                    thoughts=row.get("thoughts", ""),
+                    thesis=setup.get("thesis", ""),
+                )
+            except Exception as e:
+                st.session_state[f"_sum_err_{summary_key}"] = str(e)
+        st.session_state[summary_pending_key] = False
+        st.rerun()
+
+    if HAS_API_KEY:
+        sc1, sc2 = st.columns([5, 1])
+    else:
+        sc1, sc2 = st.container(), None
+
+    with sc1:
+        st.text_area(
+            "summary_box",
+            key=summary_key,
+            height=200,
+            placeholder="Click ✨ Generate to draft a review, then edit freely.",
+            label_visibility="collapsed",
+        )
+
+    if HAS_API_KEY and sc2 is not None:
+        with sc2:
+            st.write("")
+
+            def _request_summary():
+                st.session_state[summary_pending_key] = True
+
+            st.button(
+                "✨ Generate",
+                key=f"sum_btn_{pid}_{key}",
+                on_click=_request_summary,
+                help="Two-paragraph review via Claude Haiku, drawn from your saved notes / quotes / thoughts",
+                width="stretch",
+            )
+
+    err = st.session_state.pop(f"_sum_err_{summary_key}", None)
+    if err:
+        st.warning(f"Review failed: {err}")
+
+    cur_summary = st.session_state[summary_key]
+    if cur_summary != row.get("summary", ""):
+        df = update_row(df, key, {"summary": cur_summary})
+        save_sources(project, df)
 
     # ⭐ High importance
     st.divider()
