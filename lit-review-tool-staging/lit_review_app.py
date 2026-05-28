@@ -1458,52 +1458,20 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
         sk=notes_key,
         label="1. Notes to summarise — paraphrases, summary points",
         placeholder="Paraphrase or summarise.",
+        project=project, paper_key=key, target_field="notes",
     )
     _staging_box(
         sk=quotes_key,
         label="2. Direct quotes — paste verbatim from the source",
         placeholder="Paste direct quotes here.",
+        project=project, paper_key=key, target_field="quotes",
     )
     _staging_box(
         sk=thoughts_key,
         label="3. My thoughts — how it relates to my paper",
         placeholder="Contrasts, alignments, arguments.",
+        project=project, paper_key=key, target_field="thoughts",
     )
-
-    # Add to Excel
-    def _add_to_excel():
-        q = st.session_state.get(quotes_key, "").strip()
-        n = st.session_state.get(notes_key, "").strip()
-        t = st.session_state.get(thoughts_key, "").strip()
-        if not (q or n or t):
-            return
-        df_now = load_sources(project)
-        row_now = row_to_dict(df_now, key)
-        updates = {}
-        for field, new in [("quotes", q), ("notes", n), ("thoughts", t)]:
-            if not new:
-                continue
-            existing = row_now.get(field, "") or ""
-            sep = "\n\n" if existing else ""
-            updates[field] = existing + sep + new
-        if updates:
-            df_now = update_row(df_now, key, updates)
-            save_sources(project, df_now)
-        st.session_state[quotes_key] = ""
-        st.session_state[notes_key] = ""
-        st.session_state[thoughts_key] = ""
-
-    c1, c2 = st.columns([1, 4])
-    with c1:
-        st.button(
-            "✅ Add to Excel",
-            key=f"commit_{pid}_{key}",
-            on_click=_add_to_excel,
-            type="primary",
-            width="stretch",
-        )
-    with c2:
-        st.caption("Appends each box to the paper's saved data and clears all three boxes.")
 
     # View saved
     with st.expander("View saved notes for this paper"):
@@ -1609,8 +1577,15 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
             save_sources(project, df)
 
 
-def _staging_box(sk: str, label: str, placeholder: str):
-    """Render a staging text_area with an optional ✨ Clean button next to it."""
+def _staging_box(sk: str, label: str, placeholder: str,
+                 project: dict | None = None, paper_key: str | None = None,
+                 target_field: str | None = None):
+    """Render a staging text_area with optional ✨ Clean and ✅ Add buttons.
+
+    If `project`, `paper_key` and `target_field` are supplied, an ✅ Add
+    button appears next to the box; clicking it appends the current
+    textarea content to the named field on the paper row and clears the
+    box (per-box save, ADHD-friendly: each capture committed independently)."""
     pending_key = f"_pending_clean_{sk}"
     err_key = f"_clean_err_{sk}"
 
@@ -1626,38 +1601,66 @@ def _staging_box(sk: str, label: str, placeholder: str):
         st.rerun()
 
     st.markdown(f"**{label}**")
-    if HAS_API_KEY:
-        cl, cr = st.columns([5, 1])
-        with cl:
+
+    can_add = bool(project and paper_key and target_field)
+    if HAS_API_KEY and can_add:
+        ratios = [5, 1, 1]
+    elif HAS_API_KEY or can_add:
+        ratios = [5, 1]
+    else:
+        ratios = None
+
+    if ratios:
+        cols = st.columns(ratios)
+        with cols[0]:
             st.text_area(
-                f"box_{sk}",
-                height=140,
-                key=sk,
-                placeholder=placeholder,
-                label_visibility="collapsed",
+                f"box_{sk}", height=140, key=sk,
+                placeholder=placeholder, label_visibility="collapsed",
             )
-        with cr:
-            st.write("")
+        idx = 1
+        if HAS_API_KEY:
+            with cols[idx]:
+                st.write("")
 
-            def _request_clean():
-                if st.session_state.get(sk, "").strip():
-                    st.session_state[pending_key] = True
+                def _request_clean():
+                    if st.session_state.get(sk, "").strip():
+                        st.session_state[pending_key] = True
 
-            st.button(
-                "✨ Clean",
-                key=f"clean_btn_{sk}",
-                on_click=_request_clean,
-                help="Clean OCR / line-break noise via Claude Haiku",
-                width="stretch",
-            )
+                st.button(
+                    "✨ Clean", key=f"clean_btn_{sk}",
+                    on_click=_request_clean,
+                    help="Clean OCR / line-break noise via Claude Haiku",
+                    width="stretch",
+                )
+            idx += 1
+        if can_add:
+            with cols[idx]:
+                st.write("")
+
+                def _request_add():
+                    text = st.session_state.get(sk, "").strip()
+                    if not text:
+                        return
+                    df_now = load_sources(project)
+                    row_now = row_to_dict(df_now, paper_key)
+                    existing = row_now.get(target_field, "") or ""
+                    sep = "\n\n" if existing else ""
+                    df_now = update_row(df_now, paper_key, {target_field: existing + sep + text})
+                    save_sources(project, df_now)
+                    st.session_state[sk] = ""
+
+                st.button(
+                    "✅ Add", key=f"add_btn_{sk}",
+                    on_click=_request_add, type="primary",
+                    help=f"Append to this paper's {target_field}, then clear the box.",
+                    width="stretch",
+                )
     else:
         st.text_area(
-            f"box_{sk}",
-            height=140,
-            key=sk,
-            placeholder=placeholder,
-            label_visibility="collapsed",
+            f"box_{sk}", height=140, key=sk,
+            placeholder=placeholder, label_visibility="collapsed",
         )
+
     err = st.session_state.pop(err_key, None)
     if err:
         st.warning(f"Clean failed: {err}")
