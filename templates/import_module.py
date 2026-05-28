@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "learning app"))
+sys.path.insert(0, str(REPO_ROOT / "learning-app"))
 
 import db  # noqa: E402
 

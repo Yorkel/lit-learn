@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "learning app"))
+sys.path.insert(0, str(REPO_ROOT / "learning-app"))
 sys.path.insert(0, str(REPO_ROOT / "lit-review-tool-staging"))
 
 # These two imports are deliberately separate — each app's db.py is its own
@@ -46,7 +46,7 @@ def _load(name: str, path: Path):
     return mod
 
 
-ln_db = _load("ln_db", REPO_ROOT / "learning app" / "db.py")
+ln_db = _load("ln_db", REPO_ROOT / "learning-app" / "db.py")
 lr_db = _load("lr_db", REPO_ROOT / "lit-review-tool-staging" / "db.py")
 
 

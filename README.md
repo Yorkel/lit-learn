@@ -4,7 +4,7 @@ Two single-user Streamlit apps that share one Neon Postgres database.
 
 | Folder | App | Purpose |
 |---|---|---|
-| [`learning app/`](learning%20app/) | **Learning Notes** | Modules → sections → topics with notes, resources, pomodoro |
+| [`learning-app/`](learning-app/) | **Learning Notes** | Modules → sections → topics with notes, resources, pomodoro |
 | [`lit-review-tool-staging/`](lit-review-tool-staging/) | **Literature Review** | Multi-project paper-writing helper (one project = one paper) |
 
 Both apps run as separate deployments on Streamlit Community Cloud, point at the same Neon database (different tables — `ln_*` vs `lr_*`), and gate behind an app-specific password.
@@ -55,7 +55,7 @@ NEON_DATABASE_URL=postgresql://user:pwd@ep-xxx-pooler.eu-west-2.aws.neon.tech/ne
 1. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**
 2. **Repository:** point at this repo
 3. **Branch:** `main`
-4. **Main file path:** `learning app/app.py`
+4. **Main file path:** `learning-app/app.py`
 5. **App URL:** pick a subdomain like `yorkel-learning-notes`
 6. **Advanced settings → Secrets** — paste:
    ```toml
@@ -87,7 +87,7 @@ Both apps will share the same Neon database but never see each other's tables (d
 # Each app's db.py auto-loads .env from its own dir, the parent dir, and cwd.
 
 # Learning Notes
-cd "learning app"
+cd learning-app
 pip install -r requirements.txt
 streamlit run app.py        # → http://localhost:8501
 
@@ -131,7 +131,7 @@ To re-create from scratch on a fresh Neon project, run [supabase/schema.sql](sup
 ├── README.md                       # this file
 ├── supabase/
 │   └── schema.sql                  # canonical Postgres schema (works on Neon as-is)
-├── learning app/
+├── learning-app/
 │   ├── app.py                      # Streamlit app
 │   ├── db.py                       # Neon data layer
 │   ├── seed_from_docx.py           # one-off seeder (legacy, file-based)

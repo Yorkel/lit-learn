@@ -55,7 +55,7 @@ Set these either in repo-root `.env` (local, auto-loaded by `db.py`), in `.strea
 
 1. Push this repo (`lit-learn`) to GitHub.
 2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
-3. Point at the repo, branch `main`, **Main file path** = `learning app/app.py` (note the space — Streamlit handles it fine).
+3. Point at the repo, branch `main`, **Main file path** = `learning-app/app.py`.
 4. **Advanced settings → Secrets** — paste:
    ```toml
    NEON_DATABASE_URL = "postgresql://...@ep-xxx-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
