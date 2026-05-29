@@ -1193,7 +1193,7 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
 
     # ── Papers section ──
     st.divider()
-    st.markdown("### Papers")
+    st.markdown("### Papers to review")
     total = len(df)
     reviewed = (df["status"] == "reviewed").sum()
     partial = (df["status"] == "partial").sum()
