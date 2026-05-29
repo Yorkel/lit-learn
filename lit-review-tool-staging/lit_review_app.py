@@ -837,7 +837,7 @@ def main():
         else ""
     )
     banner = (
-        "<div style='background:linear-gradient(135deg,#C2185B 0%,#F48FB1 100%);"
+        "<div style='background:linear-gradient(135deg,#A8636F 0%,#D8AEB5 100%);"
         "border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:.5rem'>"
         f"<div style='color:#fff;font-size:1.7rem;font-weight:800;line-height:1.1'>"
         f"📄 {project['name']}</div>"
