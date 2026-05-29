@@ -974,6 +974,7 @@ def _add_one_paper_form(project: dict, setup: dict, df: pd.DataFrame):
     with col2:
         o_venue = st.text_input("Venue", key=f"oadd_venue_{pid}")
         o_type = st.selectbox("Source type", SOURCE_TYPES, key=f"oadd_type_{pid}")
+        o_category = st.selectbox("Category", CATEGORIES, key=f"oadd_cat_{pid}")
         o_url = st.text_input("URL / DOI", key=f"oadd_url_{pid}")
         o_tags = st.text_input(
             "Tags (comma-separated)",
@@ -985,7 +986,7 @@ def _add_one_paper_form(project: dict, setup: dict, df: pd.DataFrame):
             df = update_row(df, o_key, {
                 "title": o_title, "authors": o_authors,
                 "year": o_year, "venue": o_venue,
-                "source_type": o_type, "url": o_url,
+                "source_type": o_type, "category": o_category, "url": o_url,
                 "tags": o_tags, "status": "not_started",
             })
             save_sources(project, df)
@@ -1454,6 +1455,18 @@ def render_review(project: dict, df: pd.DataFrame, setup: dict):
             )
             if new_status != cur_status:
                 df = update_row(df, key, {"status": new_status})
+                save_sources(project, df)
+                st.rerun()
+
+            cur_cat = row.get("category", "") or ""
+            new_cat = st.selectbox(
+                "Category",
+                CATEGORIES,
+                index=CATEGORIES.index(cur_cat) if cur_cat in CATEGORIES else 0,
+                key=f"cat_{pid}_{key}",
+            )
+            if new_cat != cur_cat:
+                df = update_row(df, key, {"category": new_cat})
                 save_sources(project, df)
                 st.rerun()
 
