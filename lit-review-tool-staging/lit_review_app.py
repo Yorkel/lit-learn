@@ -827,6 +827,8 @@ def main():
     _draft = load_draft(project)
     words_n = sum(len((v or "").split()) for v in _draft.values())
     thesis_txt = (setup.get("thesis") or "").strip()
+    if len(thesis_txt) > 160:
+        thesis_txt = thesis_txt[:157].rstrip() + "…"
 
     def _chip(label: str) -> str:
         return (
@@ -1041,17 +1043,21 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     st.markdown("### Setup")
 
     # ─────────────────────────────────────────────────────────────────────
-    # SECTION 1 — Paper basics
+    # SECTION 1 — Project basics
     # ─────────────────────────────────────────────────────────────────────
     st.subheader("1. Project basics")
     new_title = st.text_input(
         "Project title", value=setup.get("title", ""), key=f"setup_title_{pid}"
     )
+    # Stored under setup["thesis"] for back-compat (banner + LLM prompts read it),
+    # but presented as a full abstract/overview rather than a one-liner.
     new_thesis = st.text_area(
-        "One-sentence thesis",
+        "Abstract / overview",
         value=setup.get("thesis", ""),
-        height=80,
+        height=160,
         key=f"setup_thesis_{pid}",
+        help="A short abstract or overview of this paper. Shown in the header banner "
+             "and used as context for the AI tag/summary features.",
     )
     if st.button("💾 Save basics", key=f"save_basics_{pid}", type="primary"):
         s = load_setup(project)
