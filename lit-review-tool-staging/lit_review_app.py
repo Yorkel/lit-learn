@@ -846,22 +846,7 @@ def main():
         "</div>"
     )
 
-    hcol1, hcol2 = st.columns([4, 1])
-    with hcol1:
-        st.markdown(banner, unsafe_allow_html=True)
-    with hcol2:
-        with st.popover("➕ New project", width="stretch"):
-            st.caption("A project = one paper you're writing (e.g. llm-judge).")
-            hp_name = st.text_input("Project name", key="hdr_new_proj_name")
-            if st.button("Add project", key="hdr_new_proj_btn", type="primary"):
-                if hp_name.strip():
-                    proj = create_project(reg, hp_name.strip())
-                    reg["active_project"] = proj["id"]
-                    save_registry(reg)
-                    st.session_state.active_project_id = proj["id"]
-                    st.rerun()
-                else:
-                    st.warning("Name is required.")
+    st.markdown(banner, unsafe_allow_html=True)
     _render_dup_notice(project)
 
     # ── Main tabs ──
