@@ -808,13 +808,23 @@ def main():
         else:
             st.caption("LLM features disabled — set ANTHROPIC_API_KEY")
 
-    # ── Page header: project title + top-right "Add new paper" ──
+    # ── Page header: project title + top-right "New project" ──
     hcol1, hcol2 = st.columns([4, 1])
     with hcol1:
         st.markdown(f"## {project['name']}")
     with hcol2:
-        with st.popover("➕ Add new paper", width="stretch"):
-            _add_one_paper_form(project, setup, df)
+        with st.popover("➕ New project", width="stretch"):
+            st.caption("A project = one paper you're writing (e.g. llm-judge).")
+            hp_name = st.text_input("Project name", key="hdr_new_proj_name")
+            if st.button("Add project", key="hdr_new_proj_btn", type="primary"):
+                if hp_name.strip():
+                    proj = create_project(reg, hp_name.strip())
+                    reg["active_project"] = proj["id"]
+                    save_registry(reg)
+                    st.session_state.active_project_id = proj["id"]
+                    st.rerun()
+                else:
+                    st.warning("Name is required.")
     _render_dup_notice(project)
 
     # ── Main tabs ──
@@ -921,7 +931,7 @@ def _import_project_ui(project: dict, setup: dict):
 
 
 def _add_one_paper_form(project: dict, setup: dict, df: pd.DataFrame):
-    """Single-paper add form. Used by the top-right '➕ Add new paper' popover."""
+    """Single-paper add form. Used by the 'Add a paper to review' expander in Setup."""
     pid = project["id"]
     col1, col2 = st.columns(2)
     with col1:
@@ -1000,9 +1010,9 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     # ─────────────────────────────────────────────────────────────────────
     # SECTION 1 — Paper basics
     # ─────────────────────────────────────────────────────────────────────
-    st.subheader("1. Paper basics")
+    st.subheader("1. Project basics")
     new_title = st.text_input(
-        "Paper title", value=setup.get("title", ""), key=f"setup_title_{pid}"
+        "Project title", value=setup.get("title", ""), key=f"setup_title_{pid}"
     )
     new_thesis = st.text_area(
         "One-sentence thesis",
@@ -1249,7 +1259,8 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
                 st.session_state.pop(f"bulk_dups_{pid}", None)
                 st.rerun()
 
-    st.caption("➕ Add papers via the **Add new paper** button at the top right, or bulk-import above.")
+    with st.expander("➕ Add a paper to review"):
+        _add_one_paper_form(project, setup, df)
 
     # ── Import setup from JSON (paste a Claude-generated reply) ──
     st.divider()
