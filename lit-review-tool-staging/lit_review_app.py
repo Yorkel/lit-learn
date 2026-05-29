@@ -113,25 +113,28 @@ def _new_id() -> str:
 
 
 # ── Outline ↔ text helpers ─────────────────────────────────────────────────
-# The Setup-tab outline editor uses a single textarea with a markdown
-# checklist format. Sections at the start of the line, subsections indented
-# by 2 spaces. `[x]` = written, `[ ]` = not yet.
-_OUTLINE_LINE = __import__("re").compile(r"^(\s*)-\s*\[([ xX])\]\s*(.*)$")
+# The Setup-tab outline editor uses a single textarea. Indentation = level:
+# a line flush to the left margin is a section; an indented line is a
+# subsection of the section above it. A trailing ✓ marks a line as written.
+# Old "- [x]" / "- [ ]" prefixes are still tolerated on input.
+_OLD_OUTLINE_PREFIX = __import__("re").compile(r"^-?\s*\[([ xX])\]\s*(.*)$")
 
 
 def outline_to_text(outline: list) -> str:
     lines = []
     for sec in (outline or []):
-        mark = "x" if sec.get("written") else " "
-        lines.append(f"- [{mark}] {sec.get('title', '')}")
+        tick = "  ✓" if sec.get("written") else ""
+        lines.append(f"{sec.get('title', '')}{tick}")
         for sub in (sec.get("subsections") or []):
-            sub_mark = "x" if sub.get("written") else " "
-            lines.append(f"  - [{sub_mark}] {sub.get('title', '')}")
+            sub_tick = "  ✓" if sub.get("written") else ""
+            lines.append(f"  {sub.get('title', '')}{sub_tick}")
     return "\n".join(lines)
 
 
 def text_to_outline(text: str, previous: list) -> list:
-    """Parse the checklist back to outline shape. Preserves stable IDs by
+    """Parse the indented outline back to outline shape. Indentation = level
+    (flush-left = section, indented = subsection); a trailing ✓ marks written.
+    Old "- [x]" / "- [ ]" prefixes are still accepted. Preserves stable IDs by
     matching titles against the previous outline."""
     sec_ids = {sec.get("title", ""): sec.get("id") for sec in (previous or [])}
     sub_ids = {}
@@ -142,22 +145,25 @@ def text_to_outline(text: str, previous: list) -> list:
     out = []
     current = None
     for line in (text or "").splitlines():
-        m = _OUTLINE_LINE.match(line)
-        if not m:
-            # Allow bare lines as well — turn them into a top-level section
-            stripped = line.strip()
-            if not stripped:
-                continue
-            indent = ""
-            mark = " "
-            title = stripped
-        else:
-            indent, mark, title = m.groups()
-            title = title.strip()
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        title = line.strip()
+        written = False
+        # Tolerate the old "- [x]"/"- [ ]" prefix
+        m = _OLD_OUTLINE_PREFIX.match(title)
+        if m:
+            written = m.group(1).lower() == "x"
+            title = m.group(2).strip()
+        elif title.startswith("- "):
+            title = title[2:].strip()
+        # Trailing ✓ marks the line written
+        if title.endswith("✓"):
+            written = True
+            title = title[:-1].strip()
         if not title:
             continue
-        written = mark.lower() == "x"
-        if len(indent) == 0:
+        if indent == 0:
             sid = sec_ids.get(title) or _new_id()
             current = {"id": sid, "title": title, "written": written, "subsections": []}
             out.append(current)
@@ -1053,19 +1059,23 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     st.divider()
 
     # ─────────────────────────────────────────────────────────────────────
-    # SECTION 2 — Outline (simple markdown-checklist editor)
+    # SECTION 2 — Outline (indented-textarea editor)
     # ─────────────────────────────────────────────────────────────────────
     st.subheader("2. Outline")
+    st.caption(
+        "One line per section. **Indent** a line (two spaces) to make it a "
+        "subsection of the line above. Add a trailing **✓** to mark a section written."
+    )
     current_outline = setup.get("outline", []) or []
     outline_text_default = outline_to_text(current_outline) or (
-        "- [ ] Introduction\n"
-        "  - [ ] Motivation\n"
-        "  - [ ] Contributions\n"
-        "- [ ] Related Work\n"
-        "- [ ] Method\n"
-        "- [ ] Results\n"
-        "- [ ] Discussion\n"
-        "- [ ] Conclusion"
+        "Introduction\n"
+        "  Motivation\n"
+        "  Contributions\n"
+        "Related Work\n"
+        "Method\n"
+        "Results\n"
+        "Discussion\n"
+        "Conclusion"
     )
     new_outline_text = st.text_area(
         "Outline",
