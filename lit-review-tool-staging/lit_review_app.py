@@ -826,9 +826,6 @@ def main():
     written_secs = sum(1 for s in _outline if s.get("written"))
     _draft = load_draft(project)
     words_n = sum(len((v or "").split()) for v in _draft.values())
-    thesis_txt = (setup.get("thesis") or "").strip()
-    if len(thesis_txt) > 160:
-        thesis_txt = thesis_txt[:157].rstrip() + "…"
 
     def _chip(label: str) -> str:
         return (
@@ -842,18 +839,11 @@ def main():
     )
     if words_n:
         chips += _chip(f"📝 {words_n:,} words")
-    thesis_html = (
-        f"<div style='color:rgba(255,255,255,.85);font-size:.95rem;"
-        f"margin-top:.2rem'>{thesis_txt}</div>"
-        if thesis_txt
-        else ""
-    )
     banner = (
         "<div style='background:linear-gradient(135deg,#A8636F 0%,#D8AEB5 100%);"
         "border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:.5rem'>"
         f"<div style='color:#fff;font-size:1.7rem;font-weight:800;line-height:1.1'>"
         f"📄 {project['name']}</div>"
-        f"{thesis_html}"
         f"<div style='margin-top:.75rem'>{chips}</div>"
         "</div>"
     )
