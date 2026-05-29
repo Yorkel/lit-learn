@@ -176,6 +176,7 @@ create table if not exists public.lr_sources (
   year          text not null default '',
   venue         text not null default '',
   source_type   text not null default '',
+  category      text not null default '',          -- theoretical / empirical / case study / ...
   doi           text not null default '',
   url           text not null default '',
   abstract      text not null default '',

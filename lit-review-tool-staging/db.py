@@ -23,7 +23,7 @@ import streamlit as st
 
 
 SOURCE_COLS = [
-    "key", "title", "authors", "year", "venue", "source_type",
+    "key", "title", "authors", "year", "venue", "source_type", "category",
     "doi", "url", "abstract", "tags", "quotes", "notes", "thoughts", "summary",
     "status", "drafted", "flag", "flag_note",
 ]

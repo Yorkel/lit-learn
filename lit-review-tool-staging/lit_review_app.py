@@ -85,6 +85,10 @@ SOURCE_TYPES = [
     "", "journal", "conference", "workshop", "preprint",
     "blog", "book", "thesis", "talk", "report", "other",
 ]
+CATEGORIES = [
+    "", "theoretical", "empirical", "case study", "methodological",
+    "review", "other",
+]
 STATUS_OPTIONS = ["not_started", "partial", "reviewed"]
 STATUS_LABELS = {
     "not_started": "Not started",
