@@ -1,7 +1,20 @@
 {
   "title": "llm-judge",
   "thesis": "",
-  "outline": [],
+  "outline": [
+    {
+      "id": "91bcd599",
+      "title": "Introduction",
+      "written": false,
+      "subsections": []
+    },
+    {
+      "id": "335f9bf6",
+      "title": "Lit Review",
+      "written": false,
+      "subsections": []
+    }
+  ],
   "deadlines": [],
   "plans": "",
   "default_tags": [],
