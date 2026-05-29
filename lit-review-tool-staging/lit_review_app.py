@@ -808,6 +808,15 @@ def main():
         else:
             st.caption("LLM features disabled — set ANTHROPIC_API_KEY")
 
+    # ── Page header: project title + top-right "Add new paper" ──
+    hcol1, hcol2 = st.columns([4, 1])
+    with hcol1:
+        st.markdown(f"## {project['name']}")
+    with hcol2:
+        with st.popover("➕ Add new paper", width="stretch"):
+            _add_one_paper_form(project, setup, df)
+    _render_dup_notice(project)
+
     # ── Main tabs ──
     tab_setup, tab_review, tab_notes, tab_draft, tab_library = st.tabs(
         ["Setup", "Review", "Notes", "Draft Paper", "Library"]
@@ -909,6 +918,79 @@ def _import_project_ui(project: dict, setup: dict):
             f"{'scratchpad set' if scratch else 'no scratchpad'}."
         )
         st.rerun()
+
+
+def _add_one_paper_form(project: dict, setup: dict, df: pd.DataFrame):
+    """Single-paper add form. Used by the top-right '➕ Add new paper' popover."""
+    pid = project["id"]
+    col1, col2 = st.columns(2)
+    with col1:
+        o_key = st.text_input("Citation key", key=f"oadd_key_{pid}")
+        o_title = st.text_input("Title", key=f"oadd_title_{pid}")
+        o_authors = st.text_input("Authors", key=f"oadd_authors_{pid}")
+        o_year = st.text_input("Year", key=f"oadd_year_{pid}")
+    with col2:
+        o_venue = st.text_input("Venue", key=f"oadd_venue_{pid}")
+        o_type = st.selectbox("Source type", SOURCE_TYPES, key=f"oadd_type_{pid}")
+        o_url = st.text_input("URL / DOI", key=f"oadd_url_{pid}")
+        o_tags = st.text_input(
+            "Tags (comma-separated)",
+            value=", ".join(setup.get("default_tags", [])),
+            key=f"oadd_tags_{pid}",
+        )
+    if st.button("Add this paper", key=f"oadd_btn_{pid}", type="primary"):
+        if o_key and o_key not in df["key"].tolist():
+            df = update_row(df, o_key, {
+                "title": o_title, "authors": o_authors,
+                "year": o_year, "venue": o_venue,
+                "source_type": o_type, "url": o_url,
+                "tags": o_tags, "status": "not_started",
+            })
+            save_sources(project, df)
+            # Check for prior reviews of this paper in other projects
+            others = find_paper_in_other_projects(pid, o_key)
+            if others:
+                st.session_state[f"dup_notice_{pid}"] = {
+                    "key": o_key, "others": others,
+                }
+            st.success(f"Added {o_key}.")
+            st.rerun()
+        elif o_key:
+            st.warning(f"{o_key} is already in this project.")
+        else:
+            st.warning("Citation key is required.")
+
+
+def _render_dup_notice(project: dict):
+    """Cross-project duplicate notice shown after adding a paper."""
+    pid = project["id"]
+    notice = st.session_state.get(f"dup_notice_{pid}")
+    if not notice:
+        return
+    with_notes = [o for o in notice["others"] if o["has_notes"]]
+    if with_notes:
+        st.warning(
+            f"🔁 **{notice['key']}** has been reviewed in "
+            + ", ".join(f"`{o['project_name']}`" for o in with_notes)
+            + ". Copy notes from one of them?"
+        )
+        for o in with_notes:
+            cols = st.columns([4, 1])
+            with cols[0]:
+                preview = (o.get("notes") or o.get("quotes") or o.get("thoughts") or "")[:120]
+                st.caption(f"From **{o['project_name']}** — {preview}…" if preview else f"From **{o['project_name']}**")
+            with cols[1]:
+                if st.button(f"Copy", key=f"dup_copy_{pid}_{o['project_id']}"):
+                    copy_review_fields(o["project_id"], pid, notice["key"])
+                    st.session_state.pop(f"dup_notice_{pid}", None)
+                    st.success(f"Copied notes from `{o['project_name']}`.")
+                    st.rerun()
+        if st.button("Dismiss", key=f"dup_dismiss_{pid}"):
+            st.session_state.pop(f"dup_notice_{pid}", None)
+            st.rerun()
+    else:
+        # Paper exists elsewhere but no notes there — silent
+        st.session_state.pop(f"dup_notice_{pid}", None)
 
 
 def render_setup(project: dict, setup: dict, df: pd.DataFrame):
@@ -1167,67 +1249,7 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
                 st.session_state.pop(f"bulk_dups_{pid}", None)
                 st.rerun()
 
-    with st.expander("Add one paper"):
-        col1, col2 = st.columns(2)
-        with col1:
-            o_key = st.text_input("Citation key", key=f"oadd_key_{pid}")
-            o_title = st.text_input("Title", key=f"oadd_title_{pid}")
-            o_authors = st.text_input("Authors", key=f"oadd_authors_{pid}")
-            o_year = st.text_input("Year", key=f"oadd_year_{pid}")
-        with col2:
-            o_venue = st.text_input("Venue", key=f"oadd_venue_{pid}")
-            o_type = st.selectbox("Source type", SOURCE_TYPES, key=f"oadd_type_{pid}")
-            o_url = st.text_input("URL / DOI", key=f"oadd_url_{pid}")
-            o_tags = st.text_input(
-                "Tags (comma-separated)",
-                value=", ".join(setup.get("default_tags", [])),
-                key=f"oadd_tags_{pid}",
-            )
-        if st.button("Add this paper", key=f"oadd_btn_{pid}"):
-            if o_key and o_key not in df["key"].tolist():
-                df = update_row(df, o_key, {
-                    "title": o_title, "authors": o_authors,
-                    "year": o_year, "venue": o_venue,
-                    "source_type": o_type, "url": o_url,
-                    "tags": o_tags, "status": "not_started",
-                })
-                save_sources(project, df)
-                # Check for prior reviews of this paper in other projects
-                others = find_paper_in_other_projects(pid, o_key)
-                if others:
-                    st.session_state[f"dup_notice_{pid}"] = {
-                        "key": o_key, "others": others,
-                    }
-                st.success(f"Added {o_key}.")
-                st.rerun()
-
-    # ── Cross-project duplicate notice (shown after adding) ──
-    notice = st.session_state.get(f"dup_notice_{pid}")
-    if notice:
-        with_notes = [o for o in notice["others"] if o["has_notes"]]
-        if with_notes:
-            st.warning(
-                f"🔁 **{notice['key']}** has been reviewed in "
-                + ", ".join(f"`{o['project_name']}`" for o in with_notes)
-                + ". Copy notes from one of them?"
-            )
-            for o in with_notes:
-                cols = st.columns([4, 1])
-                with cols[0]:
-                    preview = (o.get("notes") or o.get("quotes") or o.get("thoughts") or "")[:120]
-                    st.caption(f"From **{o['project_name']}** — {preview}…" if preview else f"From **{o['project_name']}**")
-                with cols[1]:
-                    if st.button(f"Copy", key=f"dup_copy_{pid}_{o['project_id']}"):
-                        copy_review_fields(o["project_id"], pid, notice["key"])
-                        st.session_state.pop(f"dup_notice_{pid}", None)
-                        st.success(f"Copied notes from `{o['project_name']}`.")
-                        st.rerun()
-            if st.button("Dismiss", key=f"dup_dismiss_{pid}"):
-                st.session_state.pop(f"dup_notice_{pid}", None)
-                st.rerun()
-        else:
-            # Paper exists elsewhere but no notes there — silent
-            st.session_state.pop(f"dup_notice_{pid}", None)
+    st.caption("➕ Add papers via the **Add new paper** button at the top right, or bulk-import above.")
 
     # ── Import setup from JSON (paste a Claude-generated reply) ──
     st.divider()
