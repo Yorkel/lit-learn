@@ -839,11 +839,20 @@ def main():
     )
     if words_n:
         chips += _chip(f"📝 {words_n:,} words")
+    # Paper title as the banner subtitle (skip if it just duplicates the project name)
+    paper_title = (setup.get("title") or "").strip()
+    title_html = (
+        f"<div style='color:rgba(255,255,255,.9);font-size:1rem;"
+        f"margin-top:.2rem'>{paper_title}</div>"
+        if paper_title and paper_title != project["name"]
+        else ""
+    )
     banner = (
         "<div style='background:linear-gradient(135deg,#A8636F 0%,#D8AEB5 100%);"
         "border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:.5rem'>"
         f"<div style='color:#fff;font-size:1.7rem;font-weight:800;line-height:1.1'>"
         f"📄 {project['name']}</div>"
+        f"{title_html}"
         f"<div style='margin-top:.75rem'>{chips}</div>"
         "</div>"
     )
