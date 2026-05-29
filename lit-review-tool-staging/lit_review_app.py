@@ -808,10 +808,47 @@ def main():
         else:
             st.caption("LLM features disabled — set ANTHROPIC_API_KEY")
 
-    # ── Page header: project title + top-right "New project" ──
+    # ── Page header: gradient stat banner + top-right "New project" ──
+    reviewed_n = int((df["status"] == "reviewed").sum()) if not df.empty else 0
+    total_papers = len(df)
+    _outline = setup.get("outline", []) or []
+    total_secs = len(_outline)
+    written_secs = sum(1 for s in _outline if s.get("written"))
+    _draft = load_draft(project)
+    words_n = sum(len((v or "").split()) for v in _draft.values())
+    thesis_txt = (setup.get("thesis") or "").strip()
+
+    def _chip(label: str) -> str:
+        return (
+            "<span style='display:inline-block;background:rgba(255,255,255,.18);"
+            "color:#fff;border-radius:999px;padding:.2rem .7rem;margin-right:.45rem;"
+            f"font-size:.82rem;font-weight:600;white-space:nowrap'>{label}</span>"
+        )
+
+    chips = _chip(f"📚 {reviewed_n}/{total_papers} reviewed") + _chip(
+        f"✍ {written_secs}/{total_secs} sections"
+    )
+    if words_n:
+        chips += _chip(f"📝 {words_n:,} words")
+    thesis_html = (
+        f"<div style='color:rgba(255,255,255,.85);font-size:.95rem;"
+        f"margin-top:.2rem'>{thesis_txt}</div>"
+        if thesis_txt
+        else ""
+    )
+    banner = (
+        "<div style='background:linear-gradient(135deg,#2D6E47 0%,#5FB07E 100%);"
+        "border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:.5rem'>"
+        f"<div style='color:#fff;font-size:1.7rem;font-weight:800;line-height:1.1'>"
+        f"📄 {project['name']}</div>"
+        f"{thesis_html}"
+        f"<div style='margin-top:.75rem'>{chips}</div>"
+        "</div>"
+    )
+
     hcol1, hcol2 = st.columns([4, 1])
     with hcol1:
-        st.markdown(f"## {project['name']}")
+        st.markdown(banner, unsafe_allow_html=True)
     with hcol2:
         with st.popover("➕ New project", width="stretch"):
             st.caption("A project = one paper you're writing (e.g. llm-judge).")
