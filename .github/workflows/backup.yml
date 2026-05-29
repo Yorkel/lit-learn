@@ -11,7 +11,7 @@ name: Daily Neon backup
 
 on:
   schedule:
-    - cron: "0 6 * * 0"        # Sunday 06:00 UTC
+    - cron: "0 6 * * *"        # every day 06:00 UTC
   workflow_dispatch:            # manual trigger from the Actions tab
 
 permissions:
