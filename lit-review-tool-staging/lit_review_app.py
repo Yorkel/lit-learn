@@ -101,7 +101,7 @@ STATUS_LABELS = {
 from db import (
     SOURCE_COLS,
     load_registry, save_registry, get_project, project_data_dir,
-    default_setup, create_project, delete_project,
+    default_setup, create_project, delete_project, rename_project,
     load_setup, save_setup,
     load_sources, save_sources,
     load_draft, save_draft,
@@ -1046,8 +1046,14 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
     # SECTION 1 — Project basics
     # ─────────────────────────────────────────────────────────────────────
     st.subheader("1. Project basics")
+    new_proj_name = st.text_input(
+        "Project", value=project.get("name", ""), key=f"setup_projname_{pid}",
+        help="The project's name — one paper you're writing. Also what shows in "
+             "the sidebar switcher and the header banner.",
+    )
     new_title = st.text_input(
-        "Project title", value=setup.get("title", ""), key=f"setup_title_{pid}"
+        "Paper title", value=setup.get("title", ""), key=f"setup_title_{pid}",
+        help="The full academic title of the paper itself.",
     )
     # Stored under setup["thesis"] for back-compat (banner + LLM prompts read it),
     # but presented as a full abstract/overview rather than a one-liner.
@@ -1060,6 +1066,9 @@ def render_setup(project: dict, setup: dict, df: pd.DataFrame):
              "and used as context for the AI tag/summary features.",
     )
     if st.button("💾 Save basics", key=f"save_basics_{pid}", type="primary"):
+        nm = new_proj_name.strip()
+        if nm and nm != project.get("name"):
+            rename_project(pid, nm)
         s = load_setup(project)
         s["title"] = new_title
         s["thesis"] = new_thesis

@@ -249,6 +249,13 @@ def create_project(reg: dict, name: str) -> dict:
     return project
 
 
+def rename_project(pid: str, new_name: str) -> None:
+    """Change a project's display name. The id is immutable, so all its
+    sources / setup / draft stay attached."""
+    with _conn() as c, c.cursor() as cur:
+        cur.execute("update lr_projects set name = %s where id = %s", (new_name, pid))
+
+
 def delete_project(reg: dict, pid: str) -> None:
     """Remove a project and all its data."""
     with _conn() as c, c.cursor() as cur:
