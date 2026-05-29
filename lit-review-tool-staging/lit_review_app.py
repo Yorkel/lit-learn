@@ -2080,18 +2080,35 @@ def render_notes(project: dict, df: pd.DataFrame):
 def render_compiled(project: dict, df: pd.DataFrame):
     pid = project["id"]
     st.markdown("### Library")
-    tag_filter = st.text_input(
-        "Filter by tag",
-        key=f"compiled_tag_filter_{pid}",
-        placeholder="blank = show all",
-        label_visibility="collapsed",
-    )
+    fcol1, fcol2, fcol3 = st.columns([2, 2, 1])
+    with fcol1:
+        tag_filter = st.text_input(
+            "Filter by tag",
+            key=f"compiled_tag_filter_{pid}",
+            placeholder="tag — blank = all",
+            label_visibility="collapsed",
+        )
+    with fcol2:
+        cat_filter = st.multiselect(
+            "Filter by category",
+            [c for c in CATEGORIES if c],
+            key=f"compiled_cat_filter_{pid}",
+            placeholder="category — blank = all",
+            label_visibility="collapsed",
+        )
+    with fcol3:
+        group_cat = st.checkbox("Group by category", key=f"compiled_group_cat_{pid}")
+
     flt = df
     if tag_filter:
-        flt = df[df["tags"].str.contains(tag_filter, case=False, na=False)]
+        flt = flt[flt["tags"].str.contains(tag_filter, case=False, na=False)]
+    if cat_filter:
+        flt = flt[flt["category"].isin(cat_filter)]
+    if group_cat:
+        flt = flt.sort_values(["category", "title"], kind="stable")
 
     show_cols = ["key", "title", "authors", "year", "venue", "source_type",
-                 "url", "tags", "status", "drafted", "flag"]
+                 "category", "url", "tags", "status", "drafted", "flag"]
     editable = flt[show_cols].copy()
     edited = st.data_editor(
         editable,
@@ -2099,6 +2116,7 @@ def render_compiled(project: dict, df: pd.DataFrame):
         num_rows="fixed",
         column_config={
             "source_type": st.column_config.SelectboxColumn(options=SOURCE_TYPES),
+            "category": st.column_config.SelectboxColumn(options=CATEGORIES),
             "status": st.column_config.SelectboxColumn(options=STATUS_OPTIONS),
             "drafted": st.column_config.SelectboxColumn(options=["", "yes"]),
             "flag": st.column_config.SelectboxColumn(options=["", "yes"]),
