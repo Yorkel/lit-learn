@@ -1,7 +1,194 @@
 {
   "title": "northern_ireland",
-  "thesis": "",
-  "outline": [],
+  "thesis": "Across the devolved education systems of the United Kingdom, partnerships are used to pursue policy goals and to widen whose knowledge counts. This paper takes Northern Ireland, a divided, post-conflict education system, as a critical case to show how navigating complex education systems requires context-specific expertise which adapts to local values and institutional priorities. We draw on two sources that do different analytical work. First, a desk-based review that maps how the system is organised, including the way school planning is split across several different bodies, and the problems that split causes. Second, a case study of partnership working within this context, involving internet search and interviews with three partnership actors (a funding-and-advocacy body, an academic partner, and statutory planning authorities). We show how constraints within the wider system are navigated in practice, tracing the partnership from its inception through process to projected legacy. Combining the two strands of the research provides a nuanced insight into how the partnership gathers community evidence and makes it usable within the complexities created by the wider system. We explore how legitimacy is constructed across actors and how the methods adopted are shaped by the specific context. We find that the partnership\u2019s key achievement is in creating the conditions under which evidence about school provision can be gathered and discussed across community lines. Finally, we argue that the challenges faced by the partnership are turned into one of its strengths: the divided system forces the partnership to do careful groundwork - building trust, finding neutral spaces to meet, and approaching people with care. This groundwork is the condition of effectiveness, and while this step may be overlooked in other settings, the case offers transferable insight for community-engaged partnership work across the four nations.",
+  "outline": [
+    {
+      "id": "eebf548f",
+      "title": "Introduction",
+      "written": false,
+      "subsections": [
+        {
+          "id": "72402cfa",
+          "title": "The puzzle: how partnerships actually work in hard conditions",
+          "written": false
+        },
+        {
+          "id": "57a59ea7",
+          "title": "The argument and the critical-case claim",
+          "written": false
+        },
+        {
+          "id": "fb0581e5",
+          "title": "The two-sources approach and structure of the paper",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "522a791e",
+      "title": "The case and why it is the hardest one",
+      "written": false,
+      "subsections": [
+        {
+          "id": "4253cbdf",
+          "title": "A divided, post-conflict education system",
+          "written": false
+        },
+        {
+          "id": "7b7c0377",
+          "title": "School planning split across several bodies",
+          "written": false
+        },
+        {
+          "id": "1b8c77c9",
+          "title": "Northern Ireland as a critical, not merely unusual, case",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "50fda604",
+      "title": "Theoretical framework and literature",
+      "written": false,
+      "subsections": [
+        {
+          "id": "f5b5832f",
+          "title": "Partnerships as enacted intermediation in context",
+          "written": false
+        },
+        {
+          "id": "3f751293",
+          "title": "Boundary organisations and the credibility of knowledge",
+          "written": false
+        },
+        {
+          "id": "68268607",
+          "title": "Knowledge mobilisation and whose knowledge counts",
+          "written": false
+        },
+        {
+          "id": "390a1013",
+          "title": "Education in a divided and devolved society",
+          "written": false
+        },
+        {
+          "id": "269d3450",
+          "title": "The gap: making evidence usable in a system not built to receive it",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "21560e58",
+      "title": "Methodology",
+      "written": false,
+      "subsections": [
+        {
+          "id": "90e89f50",
+          "title": "Critical case design and the two-sources logic",
+          "written": false
+        },
+        {
+          "id": "d7dc5a9f",
+          "title": "Source one: desk-based policy mapping",
+          "written": false
+        },
+        {
+          "id": "c25673f8",
+          "title": "Source two: interviews across three actor positions",
+          "written": false
+        },
+        {
+          "id": "674098af",
+          "title": "Analysis: five dimensions, four phases, read together",
+          "written": false
+        },
+        {
+          "id": "e98434d5",
+          "title": "Anonymisation, ethics, and limitations",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "f08f64ab",
+      "title": "Findings I: the system on paper",
+      "written": false,
+      "subsections": [
+        {
+          "id": "cf5585cf",
+          "title": "What the mapping shows",
+          "written": false
+        },
+        {
+          "id": "da398b3d",
+          "title": "Where the system gets stuck",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "95935ef3",
+      "title": "Findings II: how the partnership navigates it",
+      "written": false,
+      "subsections": [
+        {
+          "id": "2ce891a7",
+          "title": "Assembling legitimacy across actors",
+          "written": false
+        },
+        {
+          "id": "4609e5d3",
+          "title": "Gathering community evidence and making it usable",
+          "written": false
+        },
+        {
+          "id": "bc80c039",
+          "title": "Methods built by context",
+          "written": false
+        },
+        {
+          "id": "f972fa31",
+          "title": "Principles travel, conditions do not",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "9c532f67",
+      "title": "Discussion: difficulty is productive",
+      "written": false,
+      "subsections": [
+        {
+          "id": "3d8d5bd6",
+          "title": "Groundwork as the condition of effectiveness",
+          "written": false
+        },
+        {
+          "id": "dbb910b1",
+          "title": "The diagnostic lesson for easier settings",
+          "written": false
+        }
+      ]
+    },
+    {
+      "id": "402eccd4",
+      "title": "Conclusion",
+      "written": false,
+      "subsections": [
+        {
+          "id": "8525107b",
+          "title": "Lessons for partnership work across the four nations",
+          "written": false
+        },
+        {
+          "id": "4d13a746",
+          "title": "Next-phase research",
+          "written": false
+        }
+      ]
+    }
+  ],
   "deadlines": [],
   "plans": "",
   "default_tags": [],
